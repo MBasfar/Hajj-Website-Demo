@@ -655,8 +655,7 @@ export default function RegisterPage() {
 
                   <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
                     <p className="mb-3 text-sm leading-7 text-slate-700">
-                      قبل تأكيد التسجيل، يرجى كتابة اسمكم الكامل مرة أخرى كما تم إدخاله في
-                      بداية التسجيل.
+                      أقر بصحة البيانات المدخلة وبأن الاسم المسجل هو اسمي الكامل، وأتحمل مسؤولية أي خطأ في المعلومات.
                     </p>
 
                     <input
