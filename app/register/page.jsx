@@ -4,7 +4,6 @@ import React, { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2,
-  CalendarDays,
   Clock3,
   Phone,
   Users,
@@ -16,27 +15,97 @@ import {
 const STORAGE_KEY = "hajj_registrations";
 const MAX_CAPACITY = 188;
 
-const days = [
+const scheduleSections = [
   {
-    id: "day1",
-    label: "اليوم الأول",
-    date: "الأحد 12 ذو الحجة",
-    slots: [
-      { id: "d1-08", time: "08:00 صباحًا", capacity: MAX_CAPACITY },
-      { id: "d1-09", time: "09:00 صباحًا", capacity: MAX_CAPACITY },
-      { id: "d1-10", time: "10:00 صباحًا", capacity: MAX_CAPACITY },
-      { id: "d1-11", time: "11:00 صباحًا", capacity: MAX_CAPACITY },
+    id: "mina_to_arafat",
+    title: "مسار عملية التصعيد من منى إلى عرفات",
+    subtitle: "يوم 9 ذو الحجة",
+    times: [
+      "01:30 صباحًا",
+      "03:00 صباحًا",
+      "03:10 صباحًا",
+      "03:20 صباحًا",
+      "03:30 صباحًا",
+      "03:40 صباحًا",
+      "08:50 صباحًا",
+      "09:00 صباحًا",
+      "09:10 صباحًا",
     ],
   },
   {
-    id: "day2",
-    label: "اليوم الثاني",
-    date: "الاثنين 13 ذو الحجة",
-    slots: [
-      { id: "d2-08", time: "08:00 صباحًا", capacity: MAX_CAPACITY },
-      { id: "d2-09", time: "09:00 صباحًا", capacity: MAX_CAPACITY },
-      { id: "d2-10", time: "10:00 صباحًا", capacity: MAX_CAPACITY },
-      { id: "d2-11", time: "11:00 صباحًا", capacity: MAX_CAPACITY },
+    id: "arafat_to_muzdalifah",
+    title: "عملية الإفاضة من عرفات إلى مزدلفة",
+    subtitle: "يوم 9 ذو الحجة",
+    times: [
+      "07:30 مساءً",
+      "07:40 مساءً",
+      "07:50 مساءً",
+      "08:20 مساءً",
+      "08:30 مساءً",
+    ],
+  },
+  {
+    id: "muzdalifah_to_mina",
+    title: "عملية الإفاضة من مزدلفة إلى منى",
+    subtitle: "يوم 10 ذو الحجة",
+    times: [
+      "01:00 صباحًا",
+      "01:10 صباحًا",
+      "01:20 صباحًا",
+      "02:30 صباحًا",
+      "02:40 صباحًا",
+      "02:50 صباحًا",
+      "03:00 صباحًا",
+      "03:10 صباحًا",
+      "03:20 صباحًا",
+    ],
+  },
+  {
+    id: "second_jamarat",
+    title: "رمي الجمرات - الرمية الثانية",
+    subtitle: "يوم 11 و12 ذو الحجة",
+    times: [
+      "04:40 مساءً",
+      "05:50 مساءً",
+      "07:00 مساءً",
+      "08:00 مساءً",
+      "08:40 مساءً",
+      "09:20 مساءً",
+      "10:20 مساءً",
+      "12:20 صباحًا",
+      "12:40 صباحًا",
+    ],
+  },
+  {
+    id: "third_jamarat",
+    title: "رمي الجمرات - الرمية الثالثة",
+    subtitle: "يوم 12 ذو الحجة",
+    times: [
+      "05:00 صباحًا",
+      "05:20 صباحًا",
+      "05:30 صباحًا",
+      "05:50 صباحًا",
+      "06:10 صباحًا",
+      "06:20 صباحًا",
+      "06:40 صباحًا",
+      "06:50 صباحًا",
+      "07:10 صباحًا",
+    ],
+  },
+  {
+    id: "fourth_jamarat",
+    title: "رمي الجمرات - الرمية الرابعة",
+    subtitle: "يوم 13 ذو الحجة",
+    times: [
+      "05:00 صباحًا",
+      "05:10 صباحًا",
+      "05:20 صباحًا",
+      "05:30 صباحًا",
+      "06:10 صباحًا",
+      "06:20 صباحًا",
+      "06:30 صباحًا",
+      "06:40 صباحًا",
+      "06:50 صباحًا",
     ],
   },
 ];
@@ -45,29 +114,49 @@ const initialForm = {
   fullName: "",
   phone: "",
   gender: "",
-  dayId: "",
-  slotId: "",
   hasCompanions: "",
   companionsCount: 0,
   companions: [],
   specialNeeds: "",
   city: "",
+  confirmFullNameText: "",
+  schedules: {
+    mina_to_arafat: "",
+    arafat_to_muzdalifah: "",
+    muzdalifah_to_mina: "",
+    second_jamarat: "",
+    third_jamarat: "",
+    fourth_jamarat: "",
+  },
 };
 
-function getDay(dayId) {
-  return days.find((d) => d.id === dayId);
-}
-
-function getSlot(dayId, slotId) {
-  return getDay(dayId)?.slots.find((s) => s.id === slotId);
-}
-
 function cardClass(active = false) {
-  return `rounded-3xl border transition-all duration-200 ${
-    active
-      ? "border-blue-600 bg-blue-50 shadow-lg shadow-blue-100"
-      : "border-slate-200 bg-white hover:border-blue-300 hover:shadow-md"
-  }`;
+  return `rounded-3xl border transition-all duration-200 ${active
+    ? "border-blue-600 bg-blue-50 shadow-lg shadow-blue-100"
+    : "border-slate-200 bg-white hover:border-blue-300 hover:shadow-md"
+    }`;
+}
+
+function getScheduleOccupancy(registrations) {
+  const counts = {};
+
+  scheduleSections.forEach((section) => {
+    section.times.forEach((time) => {
+      counts[`${section.id}__${time}`] = 0;
+    });
+  });
+
+  registrations.forEach((record) => {
+    const seats = 1 + (Number(record.companionsCount) || 0);
+
+    Object.entries(record.schedules || {}).forEach(([sectionId, time]) => {
+      if (!time) return;
+      const key = `${sectionId}__${time}`;
+      counts[key] = (counts[key] || 0) + seats;
+    });
+  });
+
+  return counts;
 }
 
 export default function RegisterPage() {
@@ -95,22 +184,10 @@ export default function RegisterPage() {
     }
   }, [registrations, isLoaded]);
 
-  const occupancy = useMemo(() => {
-    const counts = {};
-    for (const day of days) {
-      for (const slot of day.slots) counts[slot.id] = 0;
-    }
-
-    registrations.forEach((r) => {
-      counts[r.slotId] =
-        (counts[r.slotId] || 0) + 1 + (Number(r.companionsCount) || 0);
-    });
-
-    return counts;
-  }, [registrations]);
-
-  const selectedDay = getDay(form.dayId);
-  const selectedSlot = getSlot(form.dayId, form.slotId);
+  const occupancy = useMemo(
+    () => getScheduleOccupancy(registrations),
+    [registrations]
+  );
 
   const canContinueFromStep = useMemo(() => {
     switch (step) {
@@ -119,27 +196,48 @@ export default function RegisterPage() {
       case 1:
         return form.fullName.trim().length >= 3;
       case 2:
-        return !!form.dayId;
-      case 3:
-        return !!form.slotId;
-      case 4:
         return form.phone.trim().length >= 8 && !!form.gender;
-      case 5:
+      case 3:
         return !!form.hasCompanions;
-      case 6:
+      case 4:
         if (form.hasCompanions === "لا") return true;
         if (!form.companionsCount || form.companionsCount < 1) return false;
         return form.companions.every((name) => name.trim().length >= 2);
-      case 7:
+      case 5:
         return !!form.specialNeeds && form.city.trim().length >= 2;
+      case 6:
+        return !!form.schedules.mina_to_arafat;
+      case 7:
+        return !!form.schedules.arafat_to_muzdalifah;
       case 8:
-        return true;
+        return !!form.schedules.muzdalifah_to_mina;
+      case 9:
+        return !!form.schedules.second_jamarat;
+      case 10:
+        return !!form.schedules.third_jamarat;
+      case 11:
+        return !!form.schedules.fourth_jamarat;
+      case 12:
+        return (
+          form.confirmFullNameText.trim() === form.fullName.trim() &&
+          form.fullName.trim().length > 0
+        );
       default:
         return false;
     }
   }, [step, form]);
 
   const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
+
+  const updateSchedule = (sectionId, time) => {
+    setForm((prev) => ({
+      ...prev,
+      schedules: {
+        ...prev.schedules,
+        [sectionId]: time,
+      },
+    }));
+  };
 
   const resetForm = () => {
     setForm(initialForm);
@@ -179,18 +277,33 @@ export default function RegisterPage() {
     updateForm({ companions: next });
   };
 
-  const submitRegistration = () => {
-    const day = getDay(form.dayId);
-    const slot = getSlot(form.dayId, form.slotId);
-
-    if (!day || !slot) return;
-
-    const used = occupancy[slot.id] || 0;
-    const requestedSeats =
+  const validateCapacityForAllSchedules = () => {
+    const seatsRequested =
       1 + (form.hasCompanions === "نعم" ? Number(form.companionsCount) : 0);
 
-    if (used + requestedSeats > slot.capacity) {
-      alert("عذرًا، لا توجد سعة كافية في هذه الفترة. يرجى اختيار وقت آخر.");
+    for (const section of scheduleSections) {
+      const selectedTime = form.schedules[section.id];
+      if (!selectedTime) continue;
+
+      const key = `${section.id}__${selectedTime}`;
+      const used = occupancy[key] || 0;
+
+      if (used + seatsRequested > MAX_CAPACITY) {
+        return {
+          ok: false,
+          message: `عذرًا، لا توجد سعة كافية في الموعد المحدد ضمن "${section.title}". يرجى اختيار وقت آخر.`,
+        };
+      }
+    }
+
+    return { ok: true };
+  };
+
+  const submitRegistration = () => {
+    const capacityCheck = validateCapacityForAllSchedules();
+
+    if (!capacityCheck.ok) {
+      alert(capacityCheck.message);
       return;
     }
 
@@ -199,16 +312,13 @@ export default function RegisterPage() {
       fullName: form.fullName,
       phone: form.phone,
       gender: form.gender,
-      dayId: day.id,
-      dayLabel: day.label,
-      slotId: slot.id,
-      slotTime: slot.time,
       hasCompanions: form.hasCompanions === "نعم",
       companionsCount:
         form.hasCompanions === "نعم" ? Number(form.companionsCount) : 0,
       companions: form.hasCompanions === "نعم" ? form.companions : [],
       specialNeeds: form.specialNeeds,
       city: form.city,
+      schedules: form.schedules,
       submittedAt: new Date().toLocaleTimeString("ar-SA", {
         hour: "numeric",
         minute: "2-digit",
@@ -217,8 +327,10 @@ export default function RegisterPage() {
 
     setRegistrations((prev) => [record, ...prev]);
     setSubmittedRecord(record);
-    setStep(9);
+    setStep(13);
   };
+
+  const totalSteps = 12;
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 text-slate-900">
@@ -234,7 +346,7 @@ export default function RegisterPage() {
               تسجيل الحجاج
             </h1>
             <p className="mt-2 text-sm leading-7 text-slate-500">
-              يرجى استكمال الخطوات التالية لإتمام التسجيل واختيار الموعد المناسب.
+              يرجى استكمال الخطوات التالية لإتمام تسجيل مواعيدكم المعتمدة.
             </p>
           </div>
 
@@ -242,14 +354,15 @@ export default function RegisterPage() {
             <div
               className="h-full rounded-full bg-blue-600 transition-all duration-500"
               style={{
-                width: `${step === 9 ? 100 : Math.max(8, (step / 8) * 100)}%`,
+                width: `${step === 13 ? 100 : Math.max(8, (step / totalSteps) * 100)
+                  }%`,
               }}
             />
           </div>
 
-          {step > 0 && step < 9 ? (
+          {step > 0 && step < 13 ? (
             <div className="mb-6 rounded-2xl bg-slate-100 px-4 py-2 text-center text-sm font-medium text-slate-700">
-              الخطوة {step} من 8
+              الخطوة {step} من {totalSteps}
             </div>
           ) : null}
 
@@ -265,33 +378,14 @@ export default function RegisterPage() {
                 <div className="space-y-6 text-center">
                   <div className="rounded-[1.75rem] border border-blue-100 bg-gradient-to-b from-white to-blue-50 p-6">
                     <h2 className="text-2xl font-bold text-slate-900">
-                      مرحبًا بكم في منصة التسجيل
+                      مرحبًا بكم في منصة تنظيم وقتكم إلى إدارة مناسك الحج
                     </h2>
-                    <p className="mt-3 leading-8 text-slate-600">
-                      نسعد بخدمتكم ونسعى إلى تسهيل إجراءات التنظيم والتنقل من
-                      خلال تسجيل البيانات واختيار الموعد المناسب وفق المقاعد
-                      المتاحة لكل حافلة.
+                    <p className="mt-4 leading-8 text-slate-600">
+                      نسعد بخدمتكم في رحلتكم الإيمانية، وقد خُصصت هذه المنصة
+                      لتسجيل المواعيد المعتمدة لتنقلاتكم ومناسككم وفق الجداول
+                      الرسمية الصادرة من وزارة الحج والعمرة، بما يضمن تنظيمًا
+                      أفضل وانسيابية أعلى خلال أداء المناسك.
                     </p>
-                    <div className="mt-6 grid gap-3 sm:grid-cols-3">
-                      <div className="rounded-2xl bg-white p-4 shadow-sm">
-                        <p className="text-sm text-slate-500">نوع الخدمة</p>
-                        <p className="mt-2 font-semibold text-slate-900">
-                          تسجيل إلكتروني
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-white p-4 shadow-sm">
-                        <p className="text-sm text-slate-500">السعة لكل فوج</p>
-                        <p className="mt-2 font-semibold text-blue-700">
-                          188 حاج
-                        </p>
-                      </div>
-                      <div className="rounded-2xl bg-white p-4 shadow-sm">
-                        <p className="text-sm text-slate-500">طريقة العرض</p>
-                        <p className="mt-2 font-semibold text-slate-900">
-                          خطوات واضحة ومبسطة
-                        </p>
-                      </div>
-                    </div>
                   </div>
                 </div>
               )}
@@ -314,85 +408,6 @@ export default function RegisterPage() {
               )}
 
               {step === 2 && (
-                <StepShell
-                  icon={<CalendarDays className="h-5 w-5" />}
-                  title="اختيار يوم الرحلة"
-                  description="يرجى تحديد اليوم المناسب من بين الخيارات المتاحة."
-                >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {days.map((day) => (
-                      <button
-                        key={day.id}
-                        onClick={() => updateForm({ dayId: day.id, slotId: "" })}
-                        className={`${cardClass(
-                          form.dayId === day.id
-                        )} p-5 text-right`}
-                      >
-                        <p className="text-lg font-bold text-slate-900">
-                          {day.label}
-                        </p>
-                        <p className="mt-2 text-sm text-slate-500">
-                          {day.date}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                </StepShell>
-              )}
-
-              {step === 3 && (
-                <StepShell
-                  icon={<Clock3 className="h-5 w-5" />}
-                  title="اختيار الفترة الزمنية"
-                  description="تظهر أدناه الفترات المتاحة لليوم المحدد. يتم إغلاق الفترة تلقائيًا عند اكتمال العدد."
-                >
-                  <div className="mb-4 rounded-2xl bg-blue-50 p-4 text-sm text-blue-800">
-                    اليوم المحدد:{" "}
-                    <span className="font-bold">{selectedDay?.label}</span>
-                  </div>
-
-                  <div className="grid gap-4 md:grid-cols-2">
-                    {selectedDay?.slots.map((slot) => {
-                      const used = occupancy[slot.id] || 0;
-                      const remaining = slot.capacity - used;
-                      const isFull = remaining <= 0;
-
-                      return (
-                        <button
-                          key={slot.id}
-                          disabled={isFull}
-                          onClick={() => updateForm({ slotId: slot.id })}
-                          className={`${cardClass(
-                            form.slotId === slot.id
-                          )} p-5 text-right disabled:cursor-not-allowed disabled:opacity-60`}
-                        >
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <p className="text-lg font-bold text-slate-900">
-                                {slot.time}
-                              </p>
-                              <p className="mt-2 text-sm text-slate-500">
-                                السعة القصوى: {slot.capacity} راكب
-                              </p>
-                            </div>
-                            <span
-                              className={`rounded-full px-3 py-1 text-xs font-bold ${
-                                isFull
-                                  ? "bg-red-100 text-red-700"
-                                  : "bg-emerald-100 text-emerald-700"
-                              }`}
-                            >
-                              {isFull ? "مكتمل" : `${remaining} متبقٍ`}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </StepShell>
-              )}
-
-              {step === 4 && (
                 <StepShell
                   icon={<Phone className="h-5 w-5" />}
                   title="بيانات التواصل"
@@ -418,7 +433,7 @@ export default function RegisterPage() {
                 </StepShell>
               )}
 
-              {step === 5 && (
+              {step === 3 && (
                 <StepShell
                   icon={<Users className="h-5 w-5" />}
                   title="المرافقون"
@@ -440,7 +455,7 @@ export default function RegisterPage() {
                 </StepShell>
               )}
 
-              {step === 6 && (
+              {step === 4 && (
                 <StepShell
                   icon={<Users className="h-5 w-5" />}
                   title="بيانات المرافقين"
@@ -490,7 +505,7 @@ export default function RegisterPage() {
                 </StepShell>
               )}
 
-              {step === 7 && (
+              {step === 5 && (
                 <StepShell
                   icon={<Accessibility className="h-5 w-5" />}
                   title="معلومات إضافية"
@@ -524,7 +539,63 @@ export default function RegisterPage() {
                 </StepShell>
               )}
 
+              {step === 6 && (
+                <ScheduleStep
+                  section={scheduleSections[0]}
+                  selectedValue={form.schedules.mina_to_arafat}
+                  onSelect={(time) => updateSchedule("mina_to_arafat", time)}
+                  occupancy={occupancy}
+                />
+              )}
+
+              {step === 7 && (
+                <ScheduleStep
+                  section={scheduleSections[1]}
+                  selectedValue={form.schedules.arafat_to_muzdalifah}
+                  onSelect={(time) =>
+                    updateSchedule("arafat_to_muzdalifah", time)
+                  }
+                  occupancy={occupancy}
+                />
+              )}
+
               {step === 8 && (
+                <ScheduleStep
+                  section={scheduleSections[2]}
+                  selectedValue={form.schedules.muzdalifah_to_mina}
+                  onSelect={(time) => updateSchedule("muzdalifah_to_mina", time)}
+                  occupancy={occupancy}
+                />
+              )}
+
+              {step === 9 && (
+                <ScheduleStep
+                  section={scheduleSections[3]}
+                  selectedValue={form.schedules.second_jamarat}
+                  onSelect={(time) => updateSchedule("second_jamarat", time)}
+                  occupancy={occupancy}
+                />
+              )}
+
+              {step === 10 && (
+                <ScheduleStep
+                  section={scheduleSections[4]}
+                  selectedValue={form.schedules.third_jamarat}
+                  onSelect={(time) => updateSchedule("third_jamarat", time)}
+                  occupancy={occupancy}
+                />
+              )}
+
+              {step === 11 && (
+                <ScheduleStep
+                  section={scheduleSections[5]}
+                  selectedValue={form.schedules.fourth_jamarat}
+                  onSelect={(time) => updateSchedule("fourth_jamarat", time)}
+                  occupancy={occupancy}
+                />
+              )}
+
+              {step === 12 && (
                 <StepShell
                   icon={<CheckCircle2 className="h-5 w-5" />}
                   title="مراجعة البيانات"
@@ -534,8 +605,6 @@ export default function RegisterPage() {
                     <ReviewItem label="الاسم الكامل" value={form.fullName} />
                     <ReviewItem label="رقم الجوال" value={form.phone} />
                     <ReviewItem label="الجنس" value={form.gender} />
-                    <ReviewItem label="اليوم" value={selectedDay?.label} />
-                    <ReviewItem label="الوقت" value={selectedSlot?.time} />
                     <ReviewItem label="المرافقون" value={form.hasCompanions} />
                     <ReviewItem
                       label="عدد المرافقين"
@@ -558,64 +627,163 @@ export default function RegisterPage() {
                       value={form.specialNeeds}
                     />
                     <ReviewItem label="مدينة السكن" value={form.city} />
+                    <ReviewItem
+                      label="منى إلى عرفات"
+                      value={form.schedules.mina_to_arafat}
+                    />
+                    <ReviewItem
+                      label="عرفات إلى مزدلفة"
+                      value={form.schedules.arafat_to_muzdalifah}
+                    />
+                    <ReviewItem
+                      label="مزدلفة إلى منى"
+                      value={form.schedules.muzdalifah_to_mina}
+                    />
+                    <ReviewItem
+                      label="الرمية الثانية"
+                      value={form.schedules.second_jamarat}
+                    />
+                    <ReviewItem
+                      label="الرمية الثالثة"
+                      value={form.schedules.third_jamarat}
+                    />
+                    <ReviewItem
+                      label="الرمية الرابعة"
+                      value={form.schedules.fourth_jamarat}
+                    />
+                  </div>
+
+                  <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="mb-3 text-sm leading-7 text-slate-700">
+                      قبل تأكيد التسجيل، يرجى كتابة اسمكم الكامل مرة أخرى كما تم إدخاله في
+                      بداية التسجيل.
+                    </p>
+
+                    <input
+                      type="text"
+                      value={form.confirmFullNameText}
+                      onChange={(e) =>
+                        updateForm({ confirmFullNameText: e.target.value })
+                      }
+                      placeholder="اكتب الاسم الكامل مرة أخرى للتأكيد"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base outline-none transition focus:border-blue-500"
+                    />
+
+                    {form.confirmFullNameText &&
+                      form.confirmFullNameText.trim() !== form.fullName.trim() && (
+                        <p className="mt-3 text-sm font-medium text-red-600">
+                          الاسم المدخل لا يطابق الاسم المسجل في بداية الطلب.
+                        </p>
+                      )}
                   </div>
                 </StepShell>
               )}
 
-              {step === 9 && submittedRecord && (
+              {step === 13 && submittedRecord && (
                 <div className="space-y-5">
                   <div className="rounded-[2rem] border border-emerald-200 bg-emerald-50 p-6">
                     <div className="flex items-start gap-4">
                       <div className="rounded-2xl bg-emerald-100 p-3 text-emerald-700">
                         <CheckCircle2 className="h-7 w-7" />
                       </div>
-                      <div>
+
+                      <div className="w-full">
                         <h3 className="text-2xl font-bold text-emerald-900">
-                          تم استلام التسجيل بنجاح
+                          شكرًا لكم، تم استلام التسجيل بنجاح
                         </h3>
+
                         <p className="mt-2 leading-7 text-emerald-800">
-                          تم حفظ التسجيل، ويمكن عرضه في جدول الإدارة من نفس
-                          الجهاز والمتصفح.
+                          تم حفظ مواعيدكم المعتمدة بنجاح. نرجو الالتزام بالأوقات المحددة وفق
+                          الجداول الرسمية المعتمدة من وزارة الحج والعمرة، ونسأل الله لكم حجًا
+                          مبرورًا وسعيًا مشكورًا.
                         </p>
 
-                        <div className="mt-4 grid gap-3 md:grid-cols-3">
+                        <div className="mt-4 grid gap-3 md:grid-cols-2">
                           <MiniStat
                             label="رقم التسجيل"
                             value={submittedRecord.id}
                           />
                           <MiniStat
-                            label="اليوم"
-                            value={submittedRecord.dayLabel}
-                          />
-                          <MiniStat
-                            label="الوقت"
-                            value={submittedRecord.slotTime}
+                            label="وقت الإرسال"
+                            value={submittedRecord.submittedAt}
                           />
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  <div className="flex flex-wrap gap-3">
-                    <button
-                      onClick={resetForm}
-                      className="rounded-2xl bg-blue-600 px-5 py-3 font-semibold text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700"
-                    >
-                      تسجيل جديد
-                    </button>
-                    <a
-                      href="/admin"
-                      className="rounded-2xl border border-slate-200 bg-white px-5 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
-                    >
-                      عرض لوحة التشغيل
-                    </a>
+                  <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <h4 className="mb-4 text-lg font-bold text-slate-900">
+                      مواقع مهمة خلال الرحلة
+                    </h4>
+
+                    <p className="mb-5 text-sm text-slate-600">
+                      يمكنكم استخدام الروابط التالية للوصول المباشر إلى المواقع المعتمدة عبر Google Maps.
+                    </p>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+
+                      {/* عرفات */}
+                      <a
+                        href="https://maps.app.goo.gl/3r2hbTcAsoUyqDVq7"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group rounded-2xl border border-slate-200 p-5 transition hover:border-blue-400 hover:shadow-md"
+                      >
+                        <div className="space-y-2">
+                          <h5 className="text-base font-bold text-slate-900">
+                            موقع عرفات
+                          </h5>
+
+                          <p className="text-sm text-slate-500">
+                            موقع الوقوف بعرفة (يوم عرفة)
+                          </p>
+
+                          <span className="inline-block text-sm font-semibold text-blue-600 group-hover:underline">
+                            فتح في الخرائط →
+                          </span>
+                        </div>
+                      </a>
+
+                      {/* مزدلفة */}
+                      <a
+                        href="https://maps.app.goo.gl/TvRReTGSs8e55m5z9"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="group rounded-2xl border border-slate-200 p-5 transition hover:border-blue-400 hover:shadow-md"
+                      >
+                        <div className="space-y-2">
+                          <h5 className="text-base font-bold text-slate-900">
+                            موقع مزدلفة
+                          </h5>
+
+                          <p className="text-sm text-slate-500">
+                            موقع المبيت بعد الإفاضة من عرفات
+                          </p>
+
+                          <span className="inline-block text-sm font-semibold text-blue-600 group-hover:underline">
+                            فتح في الخرائط →
+                          </span>
+                        </div>
+                      </a>
+
+                    </div>
+
+                    <div className="mt-6 flex justify-end">
+                      <button
+                        onClick={resetForm}
+                        className="rounded-2xl bg-blue-600 px-5 py-3 font-semibold text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700"
+                      >
+                        تسجيل جديد
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
             </motion.div>
           </AnimatePresence>
 
-          {step < 9 && (
+          {step < 13 && (
             <div className="mt-8 flex items-center justify-between gap-3 border-t border-slate-100 pt-6">
               <button
                 onClick={() => setStep((s) => Math.max(0, s - 1))}
@@ -625,7 +793,7 @@ export default function RegisterPage() {
                 السابق
               </button>
 
-              {step === 8 ? (
+              {step === 12 ? (
                 <button
                   onClick={submitRegistration}
                   className="rounded-2xl bg-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700"
@@ -634,8 +802,8 @@ export default function RegisterPage() {
                 </button>
               ) : (
                 <button
-                  onClick={() => setStep((s) => Math.min(8, s + 1))}
-                  disabled={!canContinueFromStep}
+                  onClick={() => setStep((s) => Math.min(12, s + 1))}
+                  disabled={!Boolean(canContinueFromStep)}
                   className="rounded-2xl bg-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   متابعة
@@ -646,6 +814,56 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function ScheduleStep({ section, selectedValue, onSelect, occupancy }) {
+  return (
+    <StepShell
+      icon={<Clock3 className="h-5 w-5" />}
+      title={section.title}
+      description={`يرجى اختيار الوقت المعتمد لـ ${section.subtitle}.`}
+    >
+      <div className="mb-4 rounded-2xl bg-blue-50 p-4 text-sm text-blue-800">
+        السعة القصوى لكل فوج: <span className="font-bold">{MAX_CAPACITY}</span>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2">
+        {section.times.map((time) => {
+          const used = occupancy[`${section.id}__${time}`] || 0;
+          const remaining = MAX_CAPACITY - used;
+          const isFull = remaining <= 0;
+
+          return (
+            <button
+              key={time}
+              disabled={isFull}
+              onClick={() => onSelect(time)}
+              className={`${cardClass(
+                selectedValue === time
+              )} p-5 text-right disabled:cursor-not-allowed disabled:opacity-60`}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-lg font-bold text-slate-900">{time}</p>
+                  <p className="mt-2 text-sm text-slate-500">
+                    السعة القصوى: {MAX_CAPACITY} حاج
+                  </p>
+                </div>
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${isFull
+                    ? "bg-red-100 text-red-700"
+                    : "bg-emerald-100 text-emerald-700"
+                    }`}
+                >
+                  {isFull ? "مكتمل" : `${remaining} متبقٍ`}
+                </span>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </StepShell>
   );
 }
 

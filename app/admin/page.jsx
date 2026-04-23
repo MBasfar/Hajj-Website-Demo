@@ -6,33 +6,180 @@ import { Table2, Users, Bus } from "lucide-react";
 const STORAGE_KEY = "hajj_registrations";
 const MAX_CAPACITY = 188;
 
-const days = [
+const scheduleSections = [
   {
-    id: "day1",
-    label: "اليوم الأول",
-    date: "الأحد 12 ذو الحجة",
-    slots: [
-      { id: "d1-08", time: "08:00 صباحًا", capacity: MAX_CAPACITY },
-      { id: "d1-09", time: "09:00 صباحًا", capacity: MAX_CAPACITY },
-      { id: "d1-10", time: "10:00 صباحًا", capacity: MAX_CAPACITY },
-      { id: "d1-11", time: "11:00 صباحًا", capacity: MAX_CAPACITY },
+    id: "mina_to_arafat",
+    title: "مسار عملية التصعيد من منى إلى عرفات",
+    subtitle: "يوم 9 ذو الحجة",
+    times: [
+      "01:30 صباحًا",
+      "03:00 صباحًا",
+      "03:10 صباحًا",
+      "03:20 صباحًا",
+      "03:30 صباحًا",
+      "03:40 صباحًا",
+      "08:50 صباحًا",
+      "09:00 صباحًا",
+      "09:10 صباحًا",
     ],
   },
   {
-    id: "day2",
-    label: "اليوم الثاني",
-    date: "الاثنين 13 ذو الحجة",
-    slots: [
-      { id: "d2-08", time: "08:00 صباحًا", capacity: MAX_CAPACITY },
-      { id: "d2-09", time: "09:00 صباحًا", capacity: MAX_CAPACITY },
-      { id: "d2-10", time: "10:00 صباحًا", capacity: MAX_CAPACITY },
-      { id: "d2-11", time: "11:00 صباحًا", capacity: MAX_CAPACITY },
+    id: "arafat_to_muzdalifah",
+    title: "عملية الإفاضة من عرفات إلى مزدلفة",
+    subtitle: "يوم 9 ذو الحجة",
+    times: [
+      "07:30 مساءً",
+      "07:40 مساءً",
+      "07:50 مساءً",
+      "08:20 مساءً",
+      "08:30 مساءً",
+    ],
+  },
+  {
+    id: "muzdalifah_to_mina",
+    title: "عملية الإفاضة من مزدلفة إلى منى",
+    subtitle: "يوم 10 ذو الحجة",
+    times: [
+      "01:00 صباحًا",
+      "01:10 صباحًا",
+      "01:20 صباحًا",
+      "02:30 صباحًا",
+      "02:40 صباحًا",
+      "02:50 صباحًا",
+      "03:00 صباحًا",
+      "03:10 صباحًا",
+      "03:20 صباحًا",
+    ],
+  },
+  {
+    id: "second_jamarat",
+    title: "رمي الجمرات - الرمية الثانية",
+    subtitle: "يوم 11 و12 ذو الحجة",
+    times: [
+      "04:40 مساءً",
+      "05:50 مساءً",
+      "07:00 مساءً",
+      "08:00 مساءً",
+      "08:40 مساءً",
+      "09:20 مساءً",
+      "10:20 مساءً",
+      "12:20 صباحًا",
+      "12:40 صباحًا",
+    ],
+  },
+  {
+    id: "third_jamarat",
+    title: "رمي الجمرات - الرمية الثالثة",
+    subtitle: "يوم 12 ذو الحجة",
+    times: [
+      "05:00 صباحًا",
+      "05:20 صباحًا",
+      "05:30 صباحًا",
+      "05:50 صباحًا",
+      "06:10 صباحًا",
+      "06:20 صباحًا",
+      "06:40 صباحًا",
+      "06:50 صباحًا",
+      "07:10 صباحًا",
+    ],
+  },
+  {
+    id: "fourth_jamarat",
+    title: "رمي الجمرات - الرمية الرابعة",
+    subtitle: "يوم 13 ذو الحجة",
+    times: [
+      "05:00 صباحًا",
+      "05:10 صباحًا",
+      "05:20 صباحًا",
+      "05:30 صباحًا",
+      "06:10 صباحًا",
+      "06:20 صباحًا",
+      "06:30 صباحًا",
+      "06:40 صباحًا",
+      "06:50 صباحًا",
     ],
   },
 ];
 
+function flattenRegistrationsToRows(registrations) {
+  const rows = [];
+
+  registrations.forEach((record) => {
+    const schedules = record.schedules || {};
+
+    const scheduleEntries = scheduleSections
+      .map((section) => ({
+        scheduleId: section.id,
+        scheduleTitle: section.title,
+        scheduleSubtitle: section.subtitle,
+        time: schedules[section.id] || "",
+      }))
+      .filter((item) => item.time);
+
+    scheduleEntries.forEach((scheduleEntry) => {
+      rows.push({
+        rowId: `${record.id}-${scheduleEntry.scheduleId}-main`,
+        registrationId: record.id,
+        personName: record.fullName,
+        personType: "المسجل الرئيسي",
+        phone: record.phone,
+        gender: record.gender,
+        city: record.city,
+        specialNeeds: record.specialNeeds,
+        submittedAt: record.submittedAt,
+        scheduleId: scheduleEntry.scheduleId,
+        scheduleTitle: scheduleEntry.scheduleTitle,
+        scheduleSubtitle: scheduleEntry.scheduleSubtitle,
+        scheduleTime: scheduleEntry.time,
+      });
+
+      (record.companions || []).forEach((companionName, index) => {
+        rows.push({
+          rowId: `${record.id}-${scheduleEntry.scheduleId}-companion-${index}`,
+          registrationId: record.id,
+          personName: companionName,
+          personType: "مرافق",
+          phone: record.phone,
+          gender: record.gender,
+          city: record.city,
+          specialNeeds: record.specialNeeds,
+          submittedAt: record.submittedAt,
+          scheduleId: scheduleEntry.scheduleId,
+          scheduleTitle: scheduleEntry.scheduleTitle,
+          scheduleSubtitle: scheduleEntry.scheduleSubtitle,
+          scheduleTime: scheduleEntry.time,
+        });
+      });
+    });
+  });
+
+  return rows;
+}
+
+function getScheduleOccupancy(registrations) {
+  const counts = {};
+
+  scheduleSections.forEach((section) => {
+    section.times.forEach((time) => {
+      counts[`${section.id}__${time}`] = 0;
+    });
+  });
+
+  registrations.forEach((record) => {
+    const seats = 1 + (Number(record.companionsCount) || 0);
+
+    Object.entries(record.schedules || {}).forEach(([sectionId, time]) => {
+      if (!time) return;
+      const key = `${sectionId}__${time}`;
+      counts[key] = (counts[key] || 0) + seats;
+    });
+  });
+
+  return counts;
+}
+
 export default function AdminPage() {
-  const [sheetFilter, setSheetFilter] = useState("all");
+  const [filterValue, setFilterValue] = useState("all");
   const [registrations, setRegistrations] = useState([]);
 
   useEffect(() => {
@@ -50,38 +197,32 @@ export default function AdminPage() {
     const handleStorage = () => loadRegistrations();
     window.addEventListener("storage", handleStorage);
 
+    const interval = setInterval(loadRegistrations, 1000);
+
     return () => {
       window.removeEventListener("storage", handleStorage);
+      clearInterval(interval);
     };
   }, []);
 
-  const allSlots = days.flatMap((day) =>
-    day.slots.map((slot) => ({
-      ...slot,
-      dayId: day.id,
-      dayLabel: day.label,
-      date: day.date,
-    }))
+  const occupancy = useMemo(
+    () => getScheduleOccupancy(registrations),
+    [registrations]
   );
 
-  const occupancy = useMemo(() => {
-    const counts = {};
-    for (const day of days) {
-      for (const slot of day.slots) counts[slot.id] = 0;
-    }
+  const allRows = useMemo(
+    () => flattenRegistrationsToRows(registrations),
+    [registrations]
+  );
 
-    registrations.forEach((r) => {
-      counts[r.slotId] =
-        (counts[r.slotId] || 0) + 1 + (Number(r.companionsCount) || 0);
-    });
+  const filteredRows = useMemo(() => {
+    if (filterValue === "all") return allRows;
 
-    return counts;
-  }, [registrations]);
-
-  const filteredSheetRows = useMemo(() => {
-    if (sheetFilter === "all") return registrations;
-    return registrations.filter((r) => r.slotId === sheetFilter);
-  }, [registrations, sheetFilter]);
+    const [scheduleId, time] = filterValue.split("__");
+    return allRows.filter(
+      (row) => row.scheduleId === scheduleId && row.scheduleTime === time
+    );
+  }, [allRows, filterValue]);
 
   const totalPassengers = useMemo(() => {
     return registrations.reduce(
@@ -89,6 +230,15 @@ export default function AdminPage() {
       0
     );
   }, [registrations]);
+
+  const filterButtons = useMemo(() => {
+    return scheduleSections.flatMap((section) =>
+      section.times.map((time) => ({
+        key: `${section.id}__${time}`,
+        label: `${section.title} - ${time}`,
+      }))
+    );
+  }, []);
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 text-slate-900">
@@ -101,8 +251,7 @@ export default function AdminPage() {
             </div>
             <h1 className="text-3xl font-bold">الكشف الحيّ للركاب</h1>
             <p className="mt-2 text-sm leading-7 text-blue-50">
-              عرض داخلي للركاب حسب اليوم ووقت الحافلة، مع قراءة مباشرة من
-              التسجيلات المحفوظة محليًا.
+              عرض داخلي لمواعيد التنقلات والمناسك، مع إظهار كل مرافق في صف مستقل.
             </p>
           </div>
 
@@ -120,12 +269,14 @@ export default function AdminPage() {
               {totalPassengers}
             </p>
           </div>
+
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm text-slate-500">عدد التسجيلات</p>
             <p className="mt-2 text-3xl font-bold text-slate-900">
               {registrations.length}
             </p>
           </div>
+
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm text-slate-500">الحد الأقصى لكل فوج</p>
             <p className="mt-2 text-3xl font-bold text-blue-700">
@@ -134,7 +285,7 @@ export default function AdminPage() {
           </div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
           <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
               <div className="rounded-2xl bg-blue-100 p-3 text-blue-700">
@@ -142,44 +293,61 @@ export default function AdminPage() {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-slate-900">
-                  مؤشرات الفترات
+                  مؤشرات المواعيد
                 </h2>
                 <p className="text-sm text-slate-500">
-                  عدد الركاب مقابل السعة المحددة لكل فترة.
+                  عدد الركاب مقابل السعة المحددة لكل موعد.
                 </p>
               </div>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2">
-              {allSlots.map((slot) => {
-                const used = occupancy[slot.id] || 0;
-                const remaining = slot.capacity - used;
-                const isFull = remaining <= 0;
+            <div className="space-y-6">
+              {scheduleSections.map((section) => (
+                <div key={section.id}>
+                  <h3 className="mb-3 text-base font-bold text-slate-900">
+                    {section.title}
+                  </h3>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {section.times.map((time) => {
+                      const key = `${section.id}__${time}`;
+                      const used = occupancy[key] || 0;
+                      const remaining = MAX_CAPACITY - used;
+                      const isFull = remaining <= 0;
 
-                return (
-                  <div
-                    key={slot.id}
-                    className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
-                  >
-                    <p className="text-sm text-slate-500">{slot.dayLabel}</p>
-                    <p className="mt-1 font-bold text-slate-900">{slot.time}</p>
-                    <p className="mt-3 text-sm text-slate-600">
-                      {used} / {slot.capacity} راكب
-                    </p>
-                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
-                      <div
-                        className="h-full rounded-full bg-blue-600"
-                        style={{
-                          width: `${Math.min(100, (used / slot.capacity) * 100)}%`,
-                        }}
-                      />
-                    </div>
-                    <p className="mt-2 text-xs font-medium text-slate-500">
-                      {isFull ? "اكتمل العدد" : `المتبقي: ${Math.max(0, remaining)}`}
-                    </p>
+                      return (
+                        <div
+                          key={key}
+                          className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                        >
+                          <p className="text-sm text-slate-500">
+                            {section.subtitle}
+                          </p>
+                          <p className="mt-1 font-bold text-slate-900">{time}</p>
+                          <p className="mt-3 text-sm text-slate-600">
+                            {used} / {MAX_CAPACITY} راكب
+                          </p>
+                          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
+                            <div
+                              className="h-full rounded-full bg-blue-600"
+                              style={{
+                                width: `${Math.min(
+                                  100,
+                                  (used / MAX_CAPACITY) * 100
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                          <p className="mt-2 text-xs font-medium text-slate-500">
+                            {isFull
+                              ? "اكتمل العدد"
+                              : `المتبقي: ${Math.max(0, remaining)}`}
+                          </p>
+                        </div>
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              ))}
             </div>
           </section>
 
@@ -193,7 +361,7 @@ export default function AdminPage() {
                   جدول الركاب
                 </h2>
                 <p className="text-sm text-slate-500">
-                  عرض مباشر للركاب حسب الفترة المحددة.
+                  كل مرافق يظهر في صف مستقل ضمن كل موعد.
                 </p>
               </div>
             </div>
@@ -201,9 +369,9 @@ export default function AdminPage() {
             <div className="mb-4 overflow-x-auto">
               <div className="flex gap-2 pb-1">
                 <button
-                  onClick={() => setSheetFilter("all")}
+                  onClick={() => setFilterValue("all")}
                   className={`rounded-full px-4 py-2 text-sm font-semibold ${
-                    sheetFilter === "all"
+                    filterValue === "all"
                       ? "bg-blue-600 text-white"
                       : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                   }`}
@@ -211,17 +379,17 @@ export default function AdminPage() {
                   الكل
                 </button>
 
-                {allSlots.map((slot) => (
+                {filterButtons.map((button) => (
                   <button
-                    key={slot.id}
-                    onClick={() => setSheetFilter(slot.id)}
+                    key={button.key}
+                    onClick={() => setFilterValue(button.key)}
                     className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold ${
-                      sheetFilter === slot.id
+                      filterValue === button.key
                         ? "bg-blue-600 text-white"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
                     }`}
                   >
-                    {slot.dayLabel} - {slot.time}
+                    {button.label}
                   </button>
                 ))}
               </div>
@@ -233,27 +401,31 @@ export default function AdminPage() {
                   <thead className="bg-slate-100 text-xs font-bold text-slate-700">
                     <tr>
                       <th className="px-4 py-3">الاسم</th>
-                      <th className="px-4 py-3">اليوم</th>
+                      <th className="px-4 py-3">الصفة</th>
+                      <th className="px-4 py-3">المسار / النسك</th>
                       <th className="px-4 py-3">الوقت</th>
                       <th className="px-4 py-3">الجوال</th>
                       <th className="px-4 py-3">الجنس</th>
-                      <th className="px-4 py-3">المرافقون</th>
                       <th className="px-4 py-3">مدينة السكن</th>
+                      <th className="px-4 py-3">احتياج خاص</th>
                       <th className="px-4 py-3">وقت التسجيل</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 bg-white text-sm">
-                    {filteredSheetRows.length > 0 ? (
-                      filteredSheetRows.map((row) => (
-                        <tr key={row.id} className="hover:bg-slate-50">
+                    {filteredRows.length > 0 ? (
+                      filteredRows.map((row) => (
+                        <tr key={row.rowId} className="hover:bg-slate-50">
                           <td className="px-4 py-3 font-semibold text-slate-900">
-                            {row.fullName}
+                            {row.personName}
                           </td>
                           <td className="px-4 py-3 text-slate-600">
-                            {row.dayLabel}
+                            {row.personType}
                           </td>
                           <td className="px-4 py-3 text-slate-600">
-                            {row.slotTime}
+                            {row.scheduleTitle}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {row.scheduleTime}
                           </td>
                           <td className="px-4 py-3 text-slate-600">
                             {row.phone}
@@ -262,12 +434,10 @@ export default function AdminPage() {
                             {row.gender}
                           </td>
                           <td className="px-4 py-3 text-slate-600">
-                            {row.hasCompanions
-                              ? row.companions.join("، ")
-                              : "—"}
+                            {row.city}
                           </td>
                           <td className="px-4 py-3 text-slate-600">
-                            {row.city}
+                            {row.specialNeeds || "—"}
                           </td>
                           <td className="px-4 py-3 text-slate-600">
                             {row.submittedAt}
@@ -277,7 +447,7 @@ export default function AdminPage() {
                     ) : (
                       <tr>
                         <td
-                          colSpan="8"
+                          colSpan="9"
                           className="px-4 py-8 text-center text-slate-500"
                         >
                           لا توجد تسجيلات بعد.
@@ -290,9 +460,9 @@ export default function AdminPage() {
             </div>
 
             <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-600">
-              هذه الصفحة تقرأ التسجيلات المحفوظة من نفس المتصفح. عند ربط النظام
-              لاحقًا مع Google Sheets أو قاعدة بيانات، ستصبح البيانات مشتركة بين
-              جميع الأجهزة.
+              هذه الصفحة تقرأ التسجيلات من نفس المتصفح محليًا. قبل رفع الموقع،
+              يمكنك اختبار التسجيل من صفحة الحجاج ثم فتح صفحة الإدارة لرؤية
+              النتائج مباشرة.
             </div>
           </section>
         </div>
