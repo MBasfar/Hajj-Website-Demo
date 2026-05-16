@@ -7,7 +7,6 @@ import {
   Clock3,
   Phone,
   Users,
-  MapPin,
   Accessibility,
   UserRound,
 } from "lucide-react";
@@ -15,12 +14,32 @@ import {
 const STORAGE_KEY = "hajj_registrations";
 const MAX_CAPACITY = 188;
 
+const groupLabels = [
+  "الفوج الأول",
+  "الفوج الثاني",
+  "الفوج الثالث",
+  "الفوج الرابع",
+  "الفوج الخامس",
+  "الفوج السادس",
+  "الفوج السابع",
+  "الفوج الثامن",
+  "الفوج التاسع",
+];
+
+function makeSlots(times) {
+  return times.map((time, index) => ({
+    groupId: `fawj_${index + 1}`,
+    groupLabel: groupLabels[index],
+    time,
+  }));
+}
+
 const scheduleSections = [
   {
     id: "mina_to_arafat",
     title: "مسار عملية التصعيد من منى إلى عرفات",
     subtitle: "يوم 9 ذو الحجة",
-    times: [
+    slots: makeSlots([
       "01:30 صباحًا",
       "03:00 صباحًا",
       "03:10 صباحًا",
@@ -30,25 +49,29 @@ const scheduleSections = [
       "08:50 صباحًا",
       "09:00 صباحًا",
       "09:10 صباحًا",
-    ],
+    ]),
   },
   {
     id: "arafat_to_muzdalifah",
     title: "عملية الإفاضة من عرفات إلى مزدلفة",
     subtitle: "يوم 9 ذو الحجة",
-    times: [
+    slots: makeSlots([
+      "07:30 مساءً",
       "07:30 مساءً",
       "07:40 مساءً",
+      "07:40 مساءً",
+      "07:50 مساءً",
+      "07:50 مساءً",
       "07:50 مساءً",
       "08:20 مساءً",
       "08:30 مساءً",
-    ],
+    ]),
   },
   {
     id: "muzdalifah_to_mina",
     title: "عملية الإفاضة من مزدلفة إلى منى",
     subtitle: "يوم 10 ذو الحجة",
-    times: [
+    slots: makeSlots([
       "01:00 صباحًا",
       "01:10 صباحًا",
       "01:20 صباحًا",
@@ -58,13 +81,13 @@ const scheduleSections = [
       "03:00 صباحًا",
       "03:10 صباحًا",
       "03:20 صباحًا",
-    ],
+    ]),
   },
   {
     id: "second_jamarat",
     title: "رمي الجمرات - الرمية الثانية",
     subtitle: "يوم 11 و12 ذو الحجة",
-    times: [
+    slots: makeSlots([
       "04:40 مساءً",
       "05:50 مساءً",
       "07:00 مساءً",
@@ -74,13 +97,13 @@ const scheduleSections = [
       "10:20 مساءً",
       "12:20 صباحًا",
       "12:40 صباحًا",
-    ],
+    ]),
   },
   {
     id: "third_jamarat",
     title: "رمي الجمرات - الرمية الثالثة",
     subtitle: "يوم 12 ذو الحجة",
-    times: [
+    slots: makeSlots([
       "05:00 صباحًا",
       "05:20 صباحًا",
       "05:30 صباحًا",
@@ -90,13 +113,13 @@ const scheduleSections = [
       "06:40 صباحًا",
       "06:50 صباحًا",
       "07:10 صباحًا",
-    ],
+    ]),
   },
   {
     id: "fourth_jamarat",
     title: "رمي الجمرات - الرمية الرابعة",
     subtitle: "يوم 13 ذو الحجة",
-    times: [
+    slots: makeSlots([
       "05:00 صباحًا",
       "05:10 صباحًا",
       "05:20 صباحًا",
@@ -106,9 +129,18 @@ const scheduleSections = [
       "06:30 صباحًا",
       "06:40 صباحًا",
       "06:50 صباحًا",
-    ],
+    ]),
   },
 ];
+
+const emptySchedules = {
+  mina_to_arafat: null,
+  arafat_to_muzdalifah: null,
+  muzdalifah_to_mina: null,
+  second_jamarat: null,
+  third_jamarat: null,
+  fourth_jamarat: null,
+};
 
 const initialForm = {
   fullName: "",
@@ -118,16 +150,10 @@ const initialForm = {
   companionsCount: 0,
   companions: [],
   specialNeeds: "",
-  city: "",
-  confirmFullNameText: "",
-  schedules: {
-    mina_to_arafat: "",
-    arafat_to_muzdalifah: "",
-    muzdalifah_to_mina: "",
-    second_jamarat: "",
-    third_jamarat: "",
-    fourth_jamarat: "",
-  },
+  floorNumber: "",
+  seatNumber: "",
+  declarationAccepted: false,
+  schedules: emptySchedules,
 };
 
 function cardClass(active = false) {
@@ -137,26 +163,39 @@ function cardClass(active = false) {
     }`;
 }
 
+function scheduleKey(sectionId, slot) {
+  return `${sectionId}__${slot.groupId}`;
+}
+
 function getScheduleOccupancy(registrations) {
   const counts = {};
 
   scheduleSections.forEach((section) => {
-    section.times.forEach((time) => {
-      counts[`${section.id}__${time}`] = 0;
+    section.slots.forEach((slot) => {
+      counts[scheduleKey(section.id, slot)] = 0;
     });
   });
 
   registrations.forEach((record) => {
-    const seats = 1 + (Number(record.companionsCount) || 0);
+    const seats =
+      1 +
+      (record.hasCompanions && Array.isArray(record.companions)
+        ? record.companions.filter((name) => name && name.trim().length > 0).length
+        : 0);
 
-    Object.entries(record.schedules || {}).forEach(([sectionId, time]) => {
-      if (!time) return;
-      const key = `${sectionId}__${time}`;
+    Object.entries(record.schedules || {}).forEach(([sectionId, selected]) => {
+      if (!selected?.groupId) return;
+      const key = `${sectionId}__${selected.groupId}`;
       counts[key] = (counts[key] || 0) + seats;
     });
   });
 
   return counts;
+}
+
+function formatSelectedSchedule(selected) {
+  if (!selected) return "—";
+  return `${selected.groupLabel} - ${selected.time}`;
 }
 
 export default function RegisterPage() {
@@ -204,24 +243,25 @@ export default function RegisterPage() {
         if (!form.companionsCount || form.companionsCount < 1) return false;
         return form.companions.every((name) => name.trim().length >= 2);
       case 5:
-        return !!form.specialNeeds && form.city.trim().length >= 2;
-      case 6:
-        return !!form.schedules.mina_to_arafat;
-      case 7:
-        return !!form.schedules.arafat_to_muzdalifah;
-      case 8:
-        return !!form.schedules.muzdalifah_to_mina;
-      case 9:
-        return !!form.schedules.second_jamarat;
-      case 10:
-        return !!form.schedules.third_jamarat;
-      case 11:
-        return !!form.schedules.fourth_jamarat;
-      case 12:
         return (
-          form.confirmFullNameText.trim() === form.fullName.trim() &&
-          form.fullName.trim().length > 0
+          !!form.specialNeeds &&
+          form.floorNumber.trim().length > 0 &&
+          form.seatNumber.trim().length > 0
         );
+      case 6:
+        return !!form.schedules.mina_to_arafat?.groupId;
+      case 7:
+        return !!form.schedules.arafat_to_muzdalifah?.groupId;
+      case 8:
+        return !!form.schedules.muzdalifah_to_mina?.groupId;
+      case 9:
+        return !!form.schedules.second_jamarat?.groupId;
+      case 10:
+        return !!form.schedules.third_jamarat?.groupId;
+      case 11:
+        return !!form.schedules.fourth_jamarat?.groupId;
+      case 12:
+        return form.declarationAccepted === true;
       default:
         return false;
     }
@@ -229,12 +269,12 @@ export default function RegisterPage() {
 
   const updateForm = (patch) => setForm((prev) => ({ ...prev, ...patch }));
 
-  const updateSchedule = (sectionId, time) => {
+  const updateSchedule = (sectionId, slot) => {
     setForm((prev) => ({
       ...prev,
       schedules: {
         ...prev.schedules,
-        [sectionId]: time,
+        [sectionId]: slot,
       },
     }));
   };
@@ -282,16 +322,16 @@ export default function RegisterPage() {
       1 + (form.hasCompanions === "نعم" ? Number(form.companionsCount) : 0);
 
     for (const section of scheduleSections) {
-      const selectedTime = form.schedules[section.id];
-      if (!selectedTime) continue;
+      const selected = form.schedules[section.id];
+      if (!selected?.groupId) continue;
 
-      const key = `${section.id}__${selectedTime}`;
+      const key = `${section.id}__${selected.groupId}`;
       const used = occupancy[key] || 0;
 
       if (used + seatsRequested > MAX_CAPACITY) {
         return {
           ok: false,
-          message: `عذرًا، لا توجد سعة كافية في الموعد المحدد ضمن "${section.title}". يرجى اختيار وقت آخر.`,
+          message: `عذرًا، لا توجد سعة كافية في الموعد المحدد ضمن "${section.title} - ${selected.groupLabel}". يرجى اختيار فوج آخر.`,
         };
       }
     }
@@ -299,7 +339,7 @@ export default function RegisterPage() {
     return { ok: true };
   };
 
-  const submitRegistration = () => {
+  const submitRegistration = async () => {
     const capacityCheck = validateCapacityForAllSchedules();
 
     if (!capacityCheck.ok) {
@@ -317,7 +357,9 @@ export default function RegisterPage() {
         form.hasCompanions === "نعم" ? Number(form.companionsCount) : 0,
       companions: form.hasCompanions === "نعم" ? form.companions : [],
       specialNeeds: form.specialNeeds,
-      city: form.city,
+      floorNumber: form.floorNumber,
+      seatNumber: form.seatNumber,
+      declarationAccepted: form.declarationAccepted,
       schedules: form.schedules,
       submittedAt: new Date().toLocaleTimeString("ar-SA", {
         hour: "numeric",
@@ -325,9 +367,29 @@ export default function RegisterPage() {
       }),
     };
 
-    setRegistrations((prev) => [record, ...prev]);
-    setSubmittedRecord(record);
-    setStep(13);
+    try {
+      const response = await fetch("/api/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(record),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        alert("حدث خطأ أثناء حفظ التسجيل في Google Sheets. يرجى المحاولة مرة أخرى.");
+        return;
+      }
+
+      setRegistrations((prev) => [record, ...prev]);
+      setSubmittedRecord(record);
+      setStep(13);
+    } catch (error) {
+      console.error(error);
+      alert("تعذر الاتصال بالخادم. يرجى المحاولة مرة أخرى.");
+    }
   };
 
   const totalSteps = 12;
@@ -511,7 +573,7 @@ export default function RegisterPage() {
                   title="معلومات إضافية"
                   description="تُستخدم هذه البيانات لدعم التخطيط التشغيلي وتحسين مستوى الخدمة."
                 >
-                  <div className="grid gap-4 md:grid-cols-2">
+                  <div className="grid gap-4 md:grid-cols-3">
                     <select
                       value={form.specialNeeds}
                       onChange={(e) =>
@@ -526,71 +588,34 @@ export default function RegisterPage() {
                       <option value="لا">لا</option>
                     </select>
 
-                    <div className="relative">
-                      <MapPin className="pointer-events-none absolute right-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                      <input
-                        value={form.city}
-                        onChange={(e) => updateForm({ city: e.target.value })}
-                        placeholder="مدينة السكن الحالية"
-                        className="w-full rounded-2xl border border-slate-200 bg-white px-12 py-4 outline-none transition focus:border-blue-500"
-                      />
-                    </div>
+                    <input
+                      value={form.floorNumber}
+                      onChange={(e) =>
+                        updateForm({ floorNumber: e.target.value })
+                      }
+                      placeholder="رقم الدور"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 outline-none transition focus:border-blue-500"
+                    />
+
+                    <input
+                      value={form.seatNumber}
+                      onChange={(e) =>
+                        updateForm({ seatNumber: e.target.value })
+                      }
+                      placeholder="رقم المقعد"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 outline-none transition focus:border-blue-500"
+                    />
                   </div>
                 </StepShell>
               )}
 
-              {step === 6 && (
+              {step >= 6 && step <= 11 && (
                 <ScheduleStep
-                  section={scheduleSections[0]}
-                  selectedValue={form.schedules.mina_to_arafat}
-                  onSelect={(time) => updateSchedule("mina_to_arafat", time)}
-                  occupancy={occupancy}
-                />
-              )}
-
-              {step === 7 && (
-                <ScheduleStep
-                  section={scheduleSections[1]}
-                  selectedValue={form.schedules.arafat_to_muzdalifah}
-                  onSelect={(time) =>
-                    updateSchedule("arafat_to_muzdalifah", time)
+                  section={scheduleSections[step - 6]}
+                  selectedValue={form.schedules[scheduleSections[step - 6].id]}
+                  onSelect={(slot) =>
+                    updateSchedule(scheduleSections[step - 6].id, slot)
                   }
-                  occupancy={occupancy}
-                />
-              )}
-
-              {step === 8 && (
-                <ScheduleStep
-                  section={scheduleSections[2]}
-                  selectedValue={form.schedules.muzdalifah_to_mina}
-                  onSelect={(time) => updateSchedule("muzdalifah_to_mina", time)}
-                  occupancy={occupancy}
-                />
-              )}
-
-              {step === 9 && (
-                <ScheduleStep
-                  section={scheduleSections[3]}
-                  selectedValue={form.schedules.second_jamarat}
-                  onSelect={(time) => updateSchedule("second_jamarat", time)}
-                  occupancy={occupancy}
-                />
-              )}
-
-              {step === 10 && (
-                <ScheduleStep
-                  section={scheduleSections[4]}
-                  selectedValue={form.schedules.third_jamarat}
-                  onSelect={(time) => updateSchedule("third_jamarat", time)}
-                  occupancy={occupancy}
-                />
-              )}
-
-              {step === 11 && (
-                <ScheduleStep
-                  section={scheduleSections[5]}
-                  selectedValue={form.schedules.fourth_jamarat}
-                  onSelect={(time) => updateSchedule("fourth_jamarat", time)}
                   occupancy={occupancy}
                 />
               )}
@@ -626,54 +651,35 @@ export default function RegisterPage() {
                       label="احتياجات خاصة"
                       value={form.specialNeeds}
                     />
-                    <ReviewItem label="مدينة السكن" value={form.city} />
-                    <ReviewItem
-                      label="منى إلى عرفات"
-                      value={form.schedules.mina_to_arafat}
-                    />
-                    <ReviewItem
-                      label="عرفات إلى مزدلفة"
-                      value={form.schedules.arafat_to_muzdalifah}
-                    />
-                    <ReviewItem
-                      label="مزدلفة إلى منى"
-                      value={form.schedules.muzdalifah_to_mina}
-                    />
-                    <ReviewItem
-                      label="الرمية الثانية"
-                      value={form.schedules.second_jamarat}
-                    />
-                    <ReviewItem
-                      label="الرمية الثالثة"
-                      value={form.schedules.third_jamarat}
-                    />
-                    <ReviewItem
-                      label="الرمية الرابعة"
-                      value={form.schedules.fourth_jamarat}
-                    />
+                    <ReviewItem label="رقم الدور" value={form.floorNumber} />
+                    <ReviewItem label="رقم المقعد" value={form.seatNumber} />
+
+                    {scheduleSections.map((section) => (
+                      <ReviewItem
+                        key={section.id}
+                        label={section.title}
+                        value={formatSelectedSchedule(form.schedules[section.id])}
+                      />
+                    ))}
                   </div>
 
                   <div className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                    <p className="mb-3 text-sm leading-7 text-slate-700">
-                      أقر بصحة البيانات المدخلة وبأن الاسم المسجل هو اسمي الكامل، وأتحمل مسؤولية أي خطأ في المعلومات.
-                    </p>
+                    <label className="flex cursor-pointer items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={form.declarationAccepted}
+                        onChange={(e) =>
+                          updateForm({
+                            declarationAccepted: e.target.checked,
+                          })
+                        }
+                        className="mt-1 h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      />
 
-                    <input
-                      type="text"
-                      value={form.confirmFullNameText}
-                      onChange={(e) =>
-                        updateForm({ confirmFullNameText: e.target.value })
-                      }
-                      placeholder="اكتب الاسم الكامل مرة أخرى للتأكيد"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base outline-none transition focus:border-blue-500"
-                    />
-
-                    {form.confirmFullNameText &&
-                      form.confirmFullNameText.trim() !== form.fullName.trim() && (
-                        <p className="mt-3 text-sm font-medium text-red-600">
-                          الاسم المدخل لا يطابق الاسم المسجل في بداية الطلب.
-                        </p>
-                      )}
+                      <span className="text-sm leading-7 text-slate-700">
+                        اقر بان التزم بالمواعيد المختارة وان الترم بمواعيد التفويج حسب ماتقرره وزارة الحج والعمرة في ذالك و اوافق على شروط و احكام الشركة في استخدام المعلومات التالية
+                      </span>
+                    </label>
                   </div>
                 </StepShell>
               )}
@@ -692,9 +698,9 @@ export default function RegisterPage() {
                         </h3>
 
                         <p className="mt-2 leading-7 text-emerald-800">
-                          تم حفظ مواعيدكم المعتمدة بنجاح. نرجو الالتزام بالأوقات المحددة وفق
-                          الجداول الرسمية المعتمدة من وزارة الحج والعمرة، ونسأل الله لكم حجًا
-                          مبرورًا وسعيًا مشكورًا.
+                          تم حفظ مواعيدكم المعتمدة بنجاح. نرجو الالتزام بالأوقات
+                          المحددة وفق الجداول الرسمية المعتمدة من وزارة الحج
+                          والعمرة، ونسأل الله لكم حجًا مبرورًا وسعيًا مشكورًا.
                         </p>
 
                         <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -717,12 +723,11 @@ export default function RegisterPage() {
                     </h4>
 
                     <p className="mb-5 text-sm text-slate-600">
-                      يمكنكم استخدام الروابط التالية للوصول المباشر إلى المواقع المعتمدة عبر Google Maps.
+                      يمكنكم استخدام الروابط التالية للوصول المباشر إلى المواقع
+                      المعتمدة عبر Google Maps.
                     </p>
 
                     <div className="grid gap-4 md:grid-cols-2">
-
-                      {/* عرفات */}
                       <a
                         href="https://maps.app.goo.gl/3r2hbTcAsoUyqDVq7"
                         target="_blank"
@@ -733,18 +738,15 @@ export default function RegisterPage() {
                           <h5 className="text-base font-bold text-slate-900">
                             موقع عرفات
                           </h5>
-
                           <p className="text-sm text-slate-500">
-                            موقع الوقوف بعرفة (يوم عرفة)
+                            موقع الوقوف بعرفة يوم عرفة
                           </p>
-
                           <span className="inline-block text-sm font-semibold text-blue-600 group-hover:underline">
-                            فتح في الخرائط →
+                            فتح في الخرائط ←
                           </span>
                         </div>
                       </a>
 
-                      {/* مزدلفة */}
                       <a
                         href="https://maps.app.goo.gl/TvRReTGSs8e55m5z9"
                         target="_blank"
@@ -755,17 +757,14 @@ export default function RegisterPage() {
                           <h5 className="text-base font-bold text-slate-900">
                             موقع مزدلفة
                           </h5>
-
                           <p className="text-sm text-slate-500">
                             موقع المبيت بعد الإفاضة من عرفات
                           </p>
-
                           <span className="inline-block text-sm font-semibold text-blue-600 group-hover:underline">
-                            فتح في الخرائط →
+                            فتح في الخرائط ←
                           </span>
                         </div>
                       </a>
-
                     </div>
 
                     <div className="mt-6 flex justify-end">
@@ -795,7 +794,8 @@ export default function RegisterPage() {
               {step === 12 ? (
                 <button
                   onClick={submitRegistration}
-                  className="rounded-2xl bg-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700"
+                  disabled={!Boolean(canContinueFromStep)}
+                  className="rounded-2xl bg-blue-600 px-6 py-3 font-semibold text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   تأكيد التسجيل
                 </button>
@@ -821,34 +821,40 @@ function ScheduleStep({ section, selectedValue, onSelect, occupancy }) {
     <StepShell
       icon={<Clock3 className="h-5 w-5" />}
       title={section.title}
-      description={`يرجى اختيار الوقت المعتمد لـ ${section.subtitle}.`}
+      description={`يرجى اختيار الفوج والوقت المعتمد لـ ${section.subtitle}.`}
     >
       <div className="mb-4 rounded-2xl bg-blue-50 p-4 text-sm text-blue-800">
         السعة القصوى لكل فوج: <span className="font-bold">{MAX_CAPACITY}</span>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2">
-        {section.times.map((time) => {
-          const used = occupancy[`${section.id}__${time}`] || 0;
+        {section.slots.map((slot) => {
+          const used = occupancy[scheduleKey(section.id, slot)] || 0;
           const remaining = MAX_CAPACITY - used;
           const isFull = remaining <= 0;
 
           return (
             <button
-              key={time}
+              key={slot.groupId}
               disabled={isFull}
-              onClick={() => onSelect(time)}
+              onClick={() => onSelect(slot)}
               className={`${cardClass(
-                selectedValue === time
+                selectedValue?.groupId === slot.groupId
               )} p-5 text-right disabled:cursor-not-allowed disabled:opacity-60`}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-lg font-bold text-slate-900">{time}</p>
+                  <p className="text-sm font-semibold text-blue-700">
+                    {slot.groupLabel}
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-slate-900">
+                    {slot.time}
+                  </p>
                   <p className="mt-2 text-sm text-slate-500">
                     السعة القصوى: {MAX_CAPACITY} حاج
                   </p>
                 </div>
+
                 <span
                   className={`rounded-full px-3 py-1 text-xs font-bold ${isFull
                     ? "bg-red-100 text-red-700"

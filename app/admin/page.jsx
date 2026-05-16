@@ -6,12 +6,32 @@ import { Table2, Users, Bus } from "lucide-react";
 const STORAGE_KEY = "hajj_registrations";
 const MAX_CAPACITY = 188;
 
+const groupLabels = [
+  "الفوج الأول",
+  "الفوج الثاني",
+  "الفوج الثالث",
+  "الفوج الرابع",
+  "الفوج الخامس",
+  "الفوج السادس",
+  "الفوج السابع",
+  "الفوج الثامن",
+  "الفوج التاسع",
+];
+
+function makeSlots(times) {
+  return times.map((time, index) => ({
+    groupId: `fawj_${index + 1}`,
+    groupLabel: groupLabels[index],
+    time,
+  }));
+}
+
 const scheduleSections = [
   {
     id: "mina_to_arafat",
     title: "مسار عملية التصعيد من منى إلى عرفات",
     subtitle: "يوم 9 ذو الحجة",
-    times: [
+    slots: makeSlots([
       "01:30 صباحًا",
       "03:00 صباحًا",
       "03:10 صباحًا",
@@ -21,25 +41,29 @@ const scheduleSections = [
       "08:50 صباحًا",
       "09:00 صباحًا",
       "09:10 صباحًا",
-    ],
+    ]),
   },
   {
     id: "arafat_to_muzdalifah",
     title: "عملية الإفاضة من عرفات إلى مزدلفة",
     subtitle: "يوم 9 ذو الحجة",
-    times: [
+    slots: makeSlots([
+      "07:30 مساءً",
       "07:30 مساءً",
       "07:40 مساءً",
+      "07:40 مساءً",
+      "07:50 مساءً",
+      "07:50 مساءً",
       "07:50 مساءً",
       "08:20 مساءً",
       "08:30 مساءً",
-    ],
+    ]),
   },
   {
     id: "muzdalifah_to_mina",
     title: "عملية الإفاضة من مزدلفة إلى منى",
     subtitle: "يوم 10 ذو الحجة",
-    times: [
+    slots: makeSlots([
       "01:00 صباحًا",
       "01:10 صباحًا",
       "01:20 صباحًا",
@@ -49,13 +73,13 @@ const scheduleSections = [
       "03:00 صباحًا",
       "03:10 صباحًا",
       "03:20 صباحًا",
-    ],
+    ]),
   },
   {
     id: "second_jamarat",
     title: "رمي الجمرات - الرمية الثانية",
     subtitle: "يوم 11 و12 ذو الحجة",
-    times: [
+    slots: makeSlots([
       "04:40 مساءً",
       "05:50 مساءً",
       "07:00 مساءً",
@@ -65,13 +89,13 @@ const scheduleSections = [
       "10:20 مساءً",
       "12:20 صباحًا",
       "12:40 صباحًا",
-    ],
+    ]),
   },
   {
     id: "third_jamarat",
     title: "رمي الجمرات - الرمية الثالثة",
     subtitle: "يوم 12 ذو الحجة",
-    times: [
+    slots: makeSlots([
       "05:00 صباحًا",
       "05:20 صباحًا",
       "05:30 صباحًا",
@@ -81,13 +105,13 @@ const scheduleSections = [
       "06:40 صباحًا",
       "06:50 صباحًا",
       "07:10 صباحًا",
-    ],
+    ]),
   },
   {
     id: "fourth_jamarat",
     title: "رمي الجمرات - الرمية الرابعة",
     subtitle: "يوم 13 ذو الحجة",
-    times: [
+    slots: makeSlots([
       "05:00 صباحًا",
       "05:10 صباحًا",
       "05:20 صباحًا",
@@ -97,9 +121,13 @@ const scheduleSections = [
       "06:30 صباحًا",
       "06:40 صباحًا",
       "06:50 صباحًا",
-    ],
+    ]),
   },
 ];
+
+function scheduleKey(sectionId, slot) {
+  return `${sectionId}__${slot.groupId}`;
+}
 
 function flattenRegistrationsToRows(registrations) {
   const rows = [];
@@ -112,9 +140,9 @@ function flattenRegistrationsToRows(registrations) {
         scheduleId: section.id,
         scheduleTitle: section.title,
         scheduleSubtitle: section.subtitle,
-        time: schedules[section.id] || "",
+        selected: schedules[section.id] || null,
       }))
-      .filter((item) => item.time);
+      .filter((item) => item.selected?.groupId);
 
     scheduleEntries.forEach((scheduleEntry) => {
       rows.push({
@@ -124,13 +152,16 @@ function flattenRegistrationsToRows(registrations) {
         personType: "المسجل الرئيسي",
         phone: record.phone,
         gender: record.gender,
-        city: record.city,
+        floorNumber: record.floorNumber,
+        seatNumber: record.seatNumber,
         specialNeeds: record.specialNeeds,
         submittedAt: record.submittedAt,
         scheduleId: scheduleEntry.scheduleId,
         scheduleTitle: scheduleEntry.scheduleTitle,
         scheduleSubtitle: scheduleEntry.scheduleSubtitle,
-        scheduleTime: scheduleEntry.time,
+        groupId: scheduleEntry.selected.groupId,
+        groupLabel: scheduleEntry.selected.groupLabel,
+        scheduleTime: scheduleEntry.selected.time,
       });
 
       (record.companions || []).forEach((companionName, index) => {
@@ -141,13 +172,16 @@ function flattenRegistrationsToRows(registrations) {
           personType: "مرافق",
           phone: record.phone,
           gender: record.gender,
-          city: record.city,
+          floorNumber: record.floorNumber,
+          seatNumber: record.seatNumber,
           specialNeeds: record.specialNeeds,
           submittedAt: record.submittedAt,
           scheduleId: scheduleEntry.scheduleId,
           scheduleTitle: scheduleEntry.scheduleTitle,
           scheduleSubtitle: scheduleEntry.scheduleSubtitle,
-          scheduleTime: scheduleEntry.time,
+          groupId: scheduleEntry.selected.groupId,
+          groupLabel: scheduleEntry.selected.groupLabel,
+          scheduleTime: scheduleEntry.selected.time,
         });
       });
     });
@@ -160,17 +194,17 @@ function getScheduleOccupancy(registrations) {
   const counts = {};
 
   scheduleSections.forEach((section) => {
-    section.times.forEach((time) => {
-      counts[`${section.id}__${time}`] = 0;
+    section.slots.forEach((slot) => {
+      counts[scheduleKey(section.id, slot)] = 0;
     });
   });
 
   registrations.forEach((record) => {
     const seats = 1 + (Number(record.companionsCount) || 0);
 
-    Object.entries(record.schedules || {}).forEach(([sectionId, time]) => {
-      if (!time) return;
-      const key = `${sectionId}__${time}`;
+    Object.entries(record.schedules || {}).forEach(([sectionId, selected]) => {
+      if (!selected?.groupId) return;
+      const key = `${sectionId}__${selected.groupId}`;
       counts[key] = (counts[key] || 0) + seats;
     });
   });
@@ -218,24 +252,28 @@ export default function AdminPage() {
   const filteredRows = useMemo(() => {
     if (filterValue === "all") return allRows;
 
-    const [scheduleId, time] = filterValue.split("__");
+    const [scheduleId, groupId] = filterValue.split("__");
     return allRows.filter(
-      (row) => row.scheduleId === scheduleId && row.scheduleTime === time
+      (row) => row.scheduleId === scheduleId && row.groupId === groupId
     );
   }, [allRows, filterValue]);
 
   const totalPassengers = useMemo(() => {
-    return registrations.reduce(
-      (sum, r) => sum + 1 + (Number(r.companionsCount) || 0),
-      0
-    );
+    return registrations.reduce((sum, r) => {
+      const companionsTotal =
+        r.hasCompanions && Array.isArray(r.companions)
+          ? r.companions.filter((name) => name && name.trim().length > 0).length
+          : 0;
+
+      return sum + 1 + companionsTotal;
+    }, 0);
   }, [registrations]);
 
   const filterButtons = useMemo(() => {
     return scheduleSections.flatMap((section) =>
-      section.times.map((time) => ({
-        key: `${section.id}__${time}`,
-        label: `${section.title} - ${time}`,
+      section.slots.map((slot) => ({
+        key: `${section.id}__${slot.groupId}`,
+        label: `${section.title} - ${slot.groupLabel} - ${slot.time}`,
       }))
     );
   }, []);
@@ -293,10 +331,10 @@ export default function AdminPage() {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-slate-900">
-                  مؤشرات المواعيد
+                  مؤشرات الأفواج
                 </h2>
                 <p className="text-sm text-slate-500">
-                  عدد الركاب مقابل السعة المحددة لكل موعد.
+                  عدد الركاب مقابل السعة المحددة لكل فوج.
                 </p>
               </div>
             </div>
@@ -308,8 +346,8 @@ export default function AdminPage() {
                     {section.title}
                   </h3>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {section.times.map((time) => {
-                      const key = `${section.id}__${time}`;
+                    {section.slots.map((slot) => {
+                      const key = scheduleKey(section.id, slot);
                       const used = occupancy[key] || 0;
                       const remaining = MAX_CAPACITY - used;
                       const isFull = remaining <= 0;
@@ -322,7 +360,12 @@ export default function AdminPage() {
                           <p className="text-sm text-slate-500">
                             {section.subtitle}
                           </p>
-                          <p className="mt-1 font-bold text-slate-900">{time}</p>
+                          <p className="mt-1 text-sm font-semibold text-blue-700">
+                            {slot.groupLabel}
+                          </p>
+                          <p className="mt-1 font-bold text-slate-900">
+                            {slot.time}
+                          </p>
                           <p className="mt-3 text-sm text-slate-600">
                             {used} / {MAX_CAPACITY} راكب
                           </p>
@@ -361,7 +404,7 @@ export default function AdminPage() {
                   جدول الركاب
                 </h2>
                 <p className="text-sm text-slate-500">
-                  كل مرافق يظهر في صف مستقل ضمن كل موعد.
+                  كل مرافق يظهر في صف مستقل ضمن كل فوج وموعد.
                 </p>
               </div>
             </div>
@@ -370,11 +413,10 @@ export default function AdminPage() {
               <div className="flex gap-2 pb-1">
                 <button
                   onClick={() => setFilterValue("all")}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold ${
-                    filterValue === "all"
+                  className={`rounded-full px-4 py-2 text-sm font-semibold ${filterValue === "all"
                       ? "bg-blue-600 text-white"
                       : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
+                    }`}
                 >
                   الكل
                 </button>
@@ -383,11 +425,10 @@ export default function AdminPage() {
                   <button
                     key={button.key}
                     onClick={() => setFilterValue(button.key)}
-                    className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold ${
-                      filterValue === button.key
+                    className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold ${filterValue === button.key
                         ? "bg-blue-600 text-white"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
+                      }`}
                   >
                     {button.label}
                   </button>
@@ -403,10 +444,12 @@ export default function AdminPage() {
                       <th className="px-4 py-3">الاسم</th>
                       <th className="px-4 py-3">الصفة</th>
                       <th className="px-4 py-3">المسار / النسك</th>
+                      <th className="px-4 py-3">الفوج</th>
                       <th className="px-4 py-3">الوقت</th>
                       <th className="px-4 py-3">الجوال</th>
                       <th className="px-4 py-3">الجنس</th>
-                      <th className="px-4 py-3">مدينة السكن</th>
+                      <th className="px-4 py-3">رقم الدور</th>
+                      <th className="px-4 py-3">رقم المقعد</th>
                       <th className="px-4 py-3">احتياج خاص</th>
                       <th className="px-4 py-3">وقت التسجيل</th>
                     </tr>
@@ -425,6 +468,9 @@ export default function AdminPage() {
                             {row.scheduleTitle}
                           </td>
                           <td className="px-4 py-3 text-slate-600">
+                            {row.groupLabel}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
                             {row.scheduleTime}
                           </td>
                           <td className="px-4 py-3 text-slate-600">
@@ -434,7 +480,10 @@ export default function AdminPage() {
                             {row.gender}
                           </td>
                           <td className="px-4 py-3 text-slate-600">
-                            {row.city}
+                            {row.floorNumber || "—"}
+                          </td>
+                          <td className="px-4 py-3 text-slate-600">
+                            {row.seatNumber || "—"}
                           </td>
                           <td className="px-4 py-3 text-slate-600">
                             {row.specialNeeds || "—"}
@@ -447,7 +496,7 @@ export default function AdminPage() {
                     ) : (
                       <tr>
                         <td
-                          colSpan="9"
+                          colSpan="11"
                           className="px-4 py-8 text-center text-slate-500"
                         >
                           لا توجد تسجيلات بعد.
