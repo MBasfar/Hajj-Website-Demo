@@ -1,10 +1,11 @@
 "use client";
 
 import React, { useEffect, useMemo, useState } from "react";
-import { Table2, Users, Bus } from "lucide-react";
+import { Table2, Users, Bus, RefreshCw, Lock } from "lucide-react";
 
-const STORAGE_KEY = "hajj_registrations";
 const MAX_CAPACITY = 188;
+const ADMIN_PASSWORD = "12345";
+const AUTH_KEY = "hajj_admin_authenticated";
 
 const groupLabels = [
   "الفوج الأول",
@@ -129,78 +130,7 @@ function scheduleKey(sectionId, slot) {
   return `${sectionId}__${slot.groupId}`;
 }
 
-function getPeopleCount(record) {
-  const companionsTotal =
-    record.hasCompanions && Array.isArray(record.companions)
-      ? record.companions.filter(
-          (c) =>
-            c?.firstName?.trim() &&
-            c?.floorNumber?.trim() &&
-            c?.seatNumber?.trim()
-        ).length
-      : 0;
-
-  return 1 + companionsTotal;
-}
-
-function flattenRegistrationsToRows(registrations) {
-  const rows = [];
-
-  registrations.forEach((record) => {
-    const schedules = record.schedules || {};
-
-    const scheduleEntries = scheduleSections
-      .map((section) => ({
-        scheduleId: section.id,
-        scheduleTitle: section.title,
-        scheduleSubtitle: section.subtitle,
-        selected: schedules[section.id] || null,
-      }))
-      .filter((item) => item.selected?.groupId);
-
-    scheduleEntries.forEach((scheduleEntry) => {
-      rows.push({
-        rowId: `${record.id}-${scheduleEntry.scheduleId}-main`,
-        registrationId: record.id,
-        personName: record.firstName,
-        personType: "المسجل الرئيسي",
-        floorNumber: record.floorNumber,
-        seatNumber: record.seatNumber,
-        specialNeeds: record.specialNeeds,
-        submittedAt: record.submittedAt,
-        scheduleId: scheduleEntry.scheduleId,
-        scheduleTitle: scheduleEntry.scheduleTitle,
-        scheduleSubtitle: scheduleEntry.scheduleSubtitle,
-        groupId: scheduleEntry.selected.groupId,
-        groupLabel: scheduleEntry.selected.groupLabel,
-        scheduleTime: scheduleEntry.selected.time,
-      });
-
-      (record.companions || []).forEach((companion, index) => {
-        rows.push({
-          rowId: `${record.id}-${scheduleEntry.scheduleId}-companion-${index}`,
-          registrationId: record.id,
-          personName: companion.firstName,
-          personType: "مرافق",
-          floorNumber: companion.floorNumber,
-          seatNumber: companion.seatNumber,
-          specialNeeds: record.specialNeeds,
-          submittedAt: record.submittedAt,
-          scheduleId: scheduleEntry.scheduleId,
-          scheduleTitle: scheduleEntry.scheduleTitle,
-          scheduleSubtitle: scheduleEntry.scheduleSubtitle,
-          groupId: scheduleEntry.selected.groupId,
-          groupLabel: scheduleEntry.selected.groupLabel,
-          scheduleTime: scheduleEntry.selected.time,
-        });
-      });
-    });
-  });
-
-  return rows;
-}
-
-function getScheduleOccupancy(registrations) {
+function getScheduleOccupancy(rows) {
   const counts = {};
 
   scheduleSections.forEach((section) => {
@@ -209,70 +139,113 @@ function getScheduleOccupancy(registrations) {
     });
   });
 
-  registrations.forEach((record) => {
-    const seats = getPeopleCount(record);
-
-    Object.entries(record.schedules || {}).forEach(([sectionId, selected]) => {
-      if (!selected?.groupId) return;
-      const key = `${sectionId}__${selected.groupId}`;
-      counts[key] = (counts[key] || 0) + seats;
-    });
+  rows.forEach((row) => {
+    if (!row.scheduleId || !row.groupId) return;
+    const key = `${row.scheduleId}__${row.groupId}`;
+    counts[key] = (counts[key] || 0) + 1;
   });
 
   return counts;
 }
 
 export default function AdminPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState("");
+  const [authError, setAuthError] = useState("");
+
   const [filterValue, setFilterValue] = useState("all");
-  const [registrations, setRegistrations] = useState([]);
+  const [rows, setRows] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const loadRegistrations = () => {
-      try {
-        const raw = localStorage.getItem(STORAGE_KEY);
-        setRegistrations(raw ? JSON.parse(raw) : []);
-      } catch {
-        setRegistrations([]);
-      }
-    };
-
-    loadRegistrations();
-
-    const handleStorage = () => loadRegistrations();
-    window.addEventListener("storage", handleStorage);
-
-    const interval = setInterval(loadRegistrations, 1000);
-
-    return () => {
-      window.removeEventListener("storage", handleStorage);
-      clearInterval(interval);
-    };
+    const savedAuth = sessionStorage.getItem(AUTH_KEY);
+    if (savedAuth === "true") {
+      setIsAuthenticated(true);
+    }
   }, []);
 
-  const occupancy = useMemo(
-    () => getScheduleOccupancy(registrations),
-    [registrations]
-  );
+  const handleLogin = (e) => {
+    e.preventDefault();
 
-  const allRows = useMemo(
-    () => flattenRegistrationsToRows(registrations),
-    [registrations]
-  );
+    if (password === ADMIN_PASSWORD) {
+      sessionStorage.setItem(AUTH_KEY, "true");
+      setIsAuthenticated(true);
+      setAuthError("");
+      return;
+    }
+
+    setAuthError("كلمة المرور غير صحيحة.");
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem(AUTH_KEY);
+    setIsAuthenticated(false);
+    setPassword("");
+  };
+
+  const loadRows = async () => {
+    try {
+      setIsLoading(true);
+
+      const response = await fetch("/api/admin/registrations", {
+        cache: "no-store",
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setRows(result.registrations || []);
+      }
+    } catch (error) {
+      console.error("Failed to load admin rows:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    loadRows();
+
+    const interval = setInterval(loadRows, 15000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated]);
+
+  const occupancy = useMemo(() => getScheduleOccupancy(rows), [rows]);
 
   const filteredRows = useMemo(() => {
-    if (filterValue === "all") return allRows;
+    if (filterValue === "all") return rows;
 
     const [scheduleId, groupId] = filterValue.split("__");
-    return allRows.filter(
+
+    return rows.filter(
       (row) => row.scheduleId === scheduleId && row.groupId === groupId
     );
-  }, [allRows, filterValue]);
+  }, [rows, filterValue]);
 
   const totalPassengers = useMemo(() => {
-    return registrations.reduce((sum, record) => {
-      return sum + getPeopleCount(record);
-    }, 0);
-  }, [registrations]);
+    const uniquePeople = new Set();
+
+    rows.forEach((row) => {
+      uniquePeople.add(
+        `${row.registrationId}-${row.personType}-${row.personName}-${row.floorNumber}-${row.seatNumber}`
+      );
+    });
+
+    return uniquePeople.size;
+  }, [rows]);
+
+  const totalRegistrations = useMemo(() => {
+    const ids = new Set();
+
+    rows.forEach((row) => {
+      if (row.registrationId) ids.add(row.registrationId);
+    });
+
+    return ids.size;
+  }, [rows]);
 
   const filterButtons = useMemo(() => {
     return scheduleSections.flatMap((section) =>
@@ -283,6 +256,58 @@ export default function AdminPage() {
     );
   }, []);
 
+  if (!isAuthenticated) {
+    return (
+      <div dir="rtl" className="min-h-screen bg-slate-50 text-slate-900">
+        <div className="mx-auto flex min-h-screen max-w-md items-center justify-center px-4">
+          <div className="w-full rounded-[2rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="mb-6 text-center">
+              <img
+                src="/logo.png"
+                alt="شعار الشركة"
+                className="mx-auto mb-4 h-20 w-auto"
+              />
+
+              <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-100 text-blue-700">
+                <Lock className="h-6 w-6" />
+              </div>
+
+              <h1 className="text-2xl font-bold text-slate-900">
+                دخول لوحة التشغيل
+              </h1>
+              <p className="mt-2 text-sm leading-7 text-slate-500">
+                يرجى إدخال كلمة المرور للوصول إلى بيانات التسجيل.
+              </p>
+            </div>
+
+            <form onSubmit={handleLogin} className="space-y-4">
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="كلمة المرور"
+                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-center outline-none transition focus:border-blue-500"
+              />
+
+              {authError && (
+                <p className="rounded-2xl bg-red-50 p-3 text-center text-sm font-medium text-red-600">
+                  {authError}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                className="w-full rounded-2xl bg-blue-600 px-6 py-4 font-semibold text-white shadow-lg shadow-blue-100 transition hover:bg-blue-700"
+              >
+                دخول
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 text-slate-900">
       <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 lg:px-8">
@@ -292,17 +317,36 @@ export default function AdminPage() {
               <Table2 className="h-4 w-4" />
               لوحة التشغيل الداخلية
             </div>
+
             <h1 className="text-3xl font-bold">الكشف الحيّ للركاب</h1>
+
             <p className="mt-2 text-sm leading-7 text-blue-50">
-              عرض داخلي لمواعيد التنقلات والمناسك، مع إظهار كل مرافق في صف مستقل.
+              عرض مباشر من Google Sheets لمواعيد التنقلات والمناسك.
             </p>
           </div>
 
-          <img
-            src="/logo.png"
-            alt="شعار الشركة"
-            className="h-16 w-auto rounded-xl bg-white/10 p-2"
-          />
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={loadRows}
+              className="inline-flex items-center gap-2 rounded-2xl bg-white/15 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/25"
+            >
+              <RefreshCw className="h-4 w-4" />
+              تحديث البيانات
+            </button>
+
+            <button
+              onClick={handleLogout}
+              className="rounded-2xl bg-white/15 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/25"
+            >
+              تسجيل الخروج
+            </button>
+
+            <img
+              src="/logo.png"
+              alt="شعار الشركة"
+              className="h-16 w-auto rounded-xl bg-white/10 p-2"
+            />
+          </div>
         </div>
 
         <div className="mb-6 grid gap-4 md:grid-cols-3">
@@ -316,7 +360,7 @@ export default function AdminPage() {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <p className="text-sm text-slate-500">عدد التسجيلات</p>
             <p className="mt-2 text-3xl font-bold text-slate-900">
-              {registrations.length}
+              {totalRegistrations}
             </p>
           </div>
 
@@ -328,12 +372,19 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {isLoading && (
+          <div className="mb-6 rounded-2xl bg-blue-50 p-4 text-sm text-blue-800">
+            جاري تحميل البيانات من Google Sheets...
+          </div>
+        )}
+
         <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
           <section className="rounded-[2rem] border border-slate-200 bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center gap-3">
               <div className="rounded-2xl bg-blue-100 p-3 text-blue-700">
                 <Bus className="h-5 w-5" />
               </div>
+
               <div>
                 <h2 className="text-lg font-bold text-slate-900">
                   مؤشرات الأفواج
@@ -350,6 +401,7 @@ export default function AdminPage() {
                   <h3 className="mb-3 text-base font-bold text-slate-900">
                     {section.title}
                   </h3>
+
                   <div className="grid gap-3 sm:grid-cols-2">
                     {section.slots.map((slot) => {
                       const key = scheduleKey(section.id, slot);
@@ -365,15 +417,19 @@ export default function AdminPage() {
                           <p className="text-sm text-slate-500">
                             {section.subtitle}
                           </p>
+
                           <p className="mt-1 text-sm font-semibold text-blue-700">
                             {slot.groupLabel}
                           </p>
+
                           <p className="mt-1 font-bold text-slate-900">
                             {slot.time}
                           </p>
+
                           <p className="mt-3 text-sm text-slate-600">
                             {used} / {MAX_CAPACITY} راكب
                           </p>
+
                           <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-200">
                             <div
                               className="h-full rounded-full bg-blue-600"
@@ -385,6 +441,7 @@ export default function AdminPage() {
                               }}
                             />
                           </div>
+
                           <p className="mt-2 text-xs font-medium text-slate-500">
                             {isFull
                               ? "اكتمل العدد"
@@ -404,12 +461,13 @@ export default function AdminPage() {
               <div className="rounded-2xl bg-blue-100 p-3 text-blue-700">
                 <Users className="h-5 w-5" />
               </div>
+
               <div>
                 <h2 className="text-lg font-bold text-slate-900">
                   جدول الركاب
                 </h2>
                 <p className="text-sm text-slate-500">
-                  كل مرافق يظهر في صف مستقل ضمن كل فوج وموعد.
+                  كل راكب يظهر في صف مستقل حسب المسار والفوج.
                 </p>
               </div>
             </div>
@@ -459,6 +517,7 @@ export default function AdminPage() {
                       <th className="px-4 py-3">وقت التسجيل</th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-slate-100 bg-white text-sm">
                     {filteredRows.length > 0 ? (
                       filteredRows.map((row) => (
@@ -466,27 +525,35 @@ export default function AdminPage() {
                           <td className="px-4 py-3 font-semibold text-slate-900">
                             {row.personName}
                           </td>
+
                           <td className="px-4 py-3 text-slate-600">
                             {row.personType}
                           </td>
+
                           <td className="px-4 py-3 text-slate-600">
                             {row.scheduleTitle}
                           </td>
+
                           <td className="px-4 py-3 text-slate-600">
                             {row.groupLabel}
                           </td>
+
                           <td className="px-4 py-3 text-slate-600">
                             {row.scheduleTime}
                           </td>
+
                           <td className="px-4 py-3 text-slate-600">
                             {row.floorNumber || "—"}
                           </td>
+
                           <td className="px-4 py-3 text-slate-600">
                             {row.seatNumber || "—"}
                           </td>
+
                           <td className="px-4 py-3 text-slate-600">
                             {row.specialNeeds || "—"}
                           </td>
+
                           <td className="px-4 py-3 text-slate-600">
                             {row.submittedAt}
                           </td>
@@ -498,7 +565,7 @@ export default function AdminPage() {
                           colSpan="9"
                           className="px-4 py-8 text-center text-slate-500"
                         >
-                          لا توجد تسجيلات بعد.
+                          لا توجد بيانات مسجلة.
                         </td>
                       </tr>
                     )}
@@ -508,8 +575,8 @@ export default function AdminPage() {
             </div>
 
             <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-600">
-              هذه الصفحة تقرأ التسجيلات من نفس المتصفح محليًا. لاحقًا يمكن ربطها
-              مباشرة مع Google Sheets لعرض البيانات المشتركة بين الأجهزة.
+              هذه الصفحة تقرأ البيانات مباشرة من Google Sheets ويتم تحديثها
+              تلقائيًا كل 15 ثانية.
             </div>
           </section>
         </div>
