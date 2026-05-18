@@ -153,8 +153,8 @@ export default function AdminPage() {
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState("");
 
-  const [filterValue, setFilterValue] = useState("all");
-  const [rows, setRows] = useState([]);
+  const [selectedSchedule, setSelectedSchedule] = useState("all");
+  const [selectedGroup, setSelectedGroup] = useState("all"); const [rows, setRows] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
@@ -216,14 +216,18 @@ export default function AdminPage() {
   const occupancy = useMemo(() => getScheduleOccupancy(rows), [rows]);
 
   const filteredRows = useMemo(() => {
-    if (filterValue === "all") return rows;
+    return rows.filter((row) => {
+      const matchSchedule =
+        selectedSchedule === "all" ||
+        row.scheduleId === selectedSchedule;
 
-    const [scheduleId, groupId] = filterValue.split("__");
+      const matchGroup =
+        selectedGroup === "all" ||
+        row.groupId === selectedGroup;
 
-    return rows.filter(
-      (row) => row.scheduleId === scheduleId && row.groupId === groupId
-    );
-  }, [rows, filterValue]);
+      return matchSchedule && matchGroup;
+    });
+  }, [rows, selectedSchedule, selectedGroup]);
 
   const totalPassengers = useMemo(() => {
     const uniquePeople = new Set();
@@ -310,7 +314,7 @@ export default function AdminPage() {
 
   return (
     <div dir="rtl" className="min-h-screen bg-slate-50 text-slate-900">
-      <div className="mx-auto max-w-7xl px-4 py-6 md:px-6 lg:px-8">
+      <div className="mx-auto max-w-5xl px-4 py-6 md:px-6 lg:px-8">
         <div className="mb-6 flex flex-col gap-4 rounded-[2rem] bg-gradient-to-l from-blue-700 via-blue-600 to-sky-500 p-6 text-white shadow-xl shadow-blue-200 md:flex-row md:items-end md:justify-between">
           <div>
             <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm backdrop-blur">
@@ -472,32 +476,48 @@ export default function AdminPage() {
               </div>
             </div>
 
-            <div className="mb-4 overflow-x-auto">
-              <div className="flex gap-2 pb-1">
-                <button
-                  onClick={() => setFilterValue("all")}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold ${
-                    filterValue === "all"
-                      ? "bg-blue-600 text-white"
-                      : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                  }`}
-                >
-                  الكل
-                </button>
+            <div className="mb-6 grid gap-4 md:grid-cols-2">
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  اختر المسار
+                </label>
 
-                {filterButtons.map((button) => (
-                  <button
-                    key={button.key}
-                    onClick={() => setFilterValue(button.key)}
-                    className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold ${
-                      filterValue === button.key
-                        ? "bg-blue-600 text-white"
-                        : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
-                  >
-                    {button.label}
-                  </button>
-                ))}
+                <select
+                  value={selectedSchedule}
+                  onChange={(e) => {
+                    setSelectedSchedule(e.target.value);
+                    setSelectedGroup("all");
+                  }}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-blue-500"
+                >
+                  <option value="all">كل المسارات</option>
+
+                  {scheduleSections.map((section) => (
+                    <option key={section.id} value={section.id}>
+                      {section.title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">
+                  اختر الفوج
+                </label>
+
+                <select
+                  value={selectedGroup}
+                  onChange={(e) => setSelectedGroup(e.target.value)}
+                  className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-blue-500"
+                >
+                  <option value="all">كل الأفواج</option>
+
+                  {groupLabels.map((group, index) => (
+                    <option key={index} value={`fawj_${index + 1}`}>
+                      {group}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
