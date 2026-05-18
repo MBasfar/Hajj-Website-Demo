@@ -129,6 +129,20 @@ function scheduleKey(sectionId, slot) {
   return `${sectionId}__${slot.groupId}`;
 }
 
+function getPeopleCount(record) {
+  const companionsTotal =
+    record.hasCompanions && Array.isArray(record.companions)
+      ? record.companions.filter(
+          (c) =>
+            c?.firstName?.trim() &&
+            c?.floorNumber?.trim() &&
+            c?.seatNumber?.trim()
+        ).length
+      : 0;
+
+  return 1 + companionsTotal;
+}
+
 function flattenRegistrationsToRows(registrations) {
   const rows = [];
 
@@ -148,10 +162,8 @@ function flattenRegistrationsToRows(registrations) {
       rows.push({
         rowId: `${record.id}-${scheduleEntry.scheduleId}-main`,
         registrationId: record.id,
-        personName: record.fullName,
+        personName: record.firstName,
         personType: "المسجل الرئيسي",
-        phone: record.phone,
-        gender: record.gender,
         floorNumber: record.floorNumber,
         seatNumber: record.seatNumber,
         specialNeeds: record.specialNeeds,
@@ -164,16 +176,14 @@ function flattenRegistrationsToRows(registrations) {
         scheduleTime: scheduleEntry.selected.time,
       });
 
-      (record.companions || []).forEach((companionName, index) => {
+      (record.companions || []).forEach((companion, index) => {
         rows.push({
           rowId: `${record.id}-${scheduleEntry.scheduleId}-companion-${index}`,
           registrationId: record.id,
-          personName: companionName,
+          personName: companion.firstName,
           personType: "مرافق",
-          phone: record.phone,
-          gender: record.gender,
-          floorNumber: record.floorNumber,
-          seatNumber: record.seatNumber,
+          floorNumber: companion.floorNumber,
+          seatNumber: companion.seatNumber,
           specialNeeds: record.specialNeeds,
           submittedAt: record.submittedAt,
           scheduleId: scheduleEntry.scheduleId,
@@ -200,7 +210,7 @@ function getScheduleOccupancy(registrations) {
   });
 
   registrations.forEach((record) => {
-    const seats = 1 + (Number(record.companionsCount) || 0);
+    const seats = getPeopleCount(record);
 
     Object.entries(record.schedules || {}).forEach(([sectionId, selected]) => {
       if (!selected?.groupId) return;
@@ -259,13 +269,8 @@ export default function AdminPage() {
   }, [allRows, filterValue]);
 
   const totalPassengers = useMemo(() => {
-    return registrations.reduce((sum, r) => {
-      const companionsTotal =
-        r.hasCompanions && Array.isArray(r.companions)
-          ? r.companions.filter((name) => name && name.trim().length > 0).length
-          : 0;
-
-      return sum + 1 + companionsTotal;
+    return registrations.reduce((sum, record) => {
+      return sum + getPeopleCount(record);
     }, 0);
   }, [registrations]);
 
@@ -413,10 +418,11 @@ export default function AdminPage() {
               <div className="flex gap-2 pb-1">
                 <button
                   onClick={() => setFilterValue("all")}
-                  className={`rounded-full px-4 py-2 text-sm font-semibold ${filterValue === "all"
+                  className={`rounded-full px-4 py-2 text-sm font-semibold ${
+                    filterValue === "all"
                       ? "bg-blue-600 text-white"
                       : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                    }`}
+                  }`}
                 >
                   الكل
                 </button>
@@ -425,10 +431,11 @@ export default function AdminPage() {
                   <button
                     key={button.key}
                     onClick={() => setFilterValue(button.key)}
-                    className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold ${filterValue === button.key
+                    className={`whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold ${
+                      filterValue === button.key
                         ? "bg-blue-600 text-white"
                         : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                      }`}
+                    }`}
                   >
                     {button.label}
                   </button>
@@ -441,13 +448,11 @@ export default function AdminPage() {
                 <table className="min-w-full text-right">
                   <thead className="bg-slate-100 text-xs font-bold text-slate-700">
                     <tr>
-                      <th className="px-4 py-3">الاسم</th>
+                      <th className="px-4 py-3">الاسم الأول</th>
                       <th className="px-4 py-3">الصفة</th>
                       <th className="px-4 py-3">المسار / النسك</th>
                       <th className="px-4 py-3">الفوج</th>
                       <th className="px-4 py-3">الوقت</th>
-                      <th className="px-4 py-3">الجوال</th>
-                      <th className="px-4 py-3">الجنس</th>
                       <th className="px-4 py-3">رقم الدور</th>
                       <th className="px-4 py-3">رقم المقعد</th>
                       <th className="px-4 py-3">احتياج خاص</th>
@@ -474,12 +479,6 @@ export default function AdminPage() {
                             {row.scheduleTime}
                           </td>
                           <td className="px-4 py-3 text-slate-600">
-                            {row.phone}
-                          </td>
-                          <td className="px-4 py-3 text-slate-600">
-                            {row.gender}
-                          </td>
-                          <td className="px-4 py-3 text-slate-600">
                             {row.floorNumber || "—"}
                           </td>
                           <td className="px-4 py-3 text-slate-600">
@@ -496,7 +495,7 @@ export default function AdminPage() {
                     ) : (
                       <tr>
                         <td
-                          colSpan="11"
+                          colSpan="9"
                           className="px-4 py-8 text-center text-slate-500"
                         >
                           لا توجد تسجيلات بعد.
@@ -509,9 +508,8 @@ export default function AdminPage() {
             </div>
 
             <div className="mt-5 rounded-2xl bg-slate-50 p-4 text-sm leading-7 text-slate-600">
-              هذه الصفحة تقرأ التسجيلات من نفس المتصفح محليًا. قبل رفع الموقع،
-              يمكنك اختبار التسجيل من صفحة الحجاج ثم فتح صفحة الإدارة لرؤية
-              النتائج مباشرة.
+              هذه الصفحة تقرأ التسجيلات من نفس المتصفح محليًا. لاحقًا يمكن ربطها
+              مباشرة مع Google Sheets لعرض البيانات المشتركة بين الأجهزة.
             </div>
           </section>
         </div>

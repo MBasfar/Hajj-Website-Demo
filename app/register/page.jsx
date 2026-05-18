@@ -5,13 +5,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2,
   Clock3,
-  Phone,
   Users,
   Accessibility,
   UserRound,
 } from "lucide-react";
 
-const STORAGE_KEY = "hajj_registrations";
 const MAX_CAPACITY = 188;
 
 const groupLabels = [
@@ -133,64 +131,51 @@ const scheduleSections = [
   },
 ];
 
-const emptySchedules = {
-  mina_to_arafat: null,
-  arafat_to_muzdalifah: null,
-  muzdalifah_to_mina: null,
-  second_jamarat: null,
-  third_jamarat: null,
-  fourth_jamarat: null,
-};
-
-const initialForm = {
-  fullName: "",
-  phone: "",
-  gender: "",
-  hasCompanions: "",
-  companionsCount: 0,
-  companions: [],
-  specialNeeds: "",
-  floorNumber: "",
-  seatNumber: "",
-  declarationAccepted: false,
-  schedules: emptySchedules,
-};
+function createInitialForm() {
+  return {
+    firstName: "",
+    floorNumber: "",
+    seatNumber: "",
+    hasCompanions: "",
+    companionsCount: 0,
+    companions: [],
+    specialNeeds: "",
+    declarationAccepted: false,
+    schedules: {
+      mina_to_arafat: null,
+      arafat_to_muzdalifah: null,
+      muzdalifah_to_mina: null,
+      second_jamarat: null,
+      third_jamarat: null,
+      fourth_jamarat: null,
+    },
+  };
+}
 
 function cardClass(active = false) {
-  return `rounded-3xl border transition-all duration-200 ${active
-    ? "border-blue-600 bg-blue-50 shadow-lg shadow-blue-100"
-    : "border-slate-200 bg-white hover:border-blue-300 hover:shadow-md"
-    }`;
+  return `rounded-3xl border transition-all duration-200 ${
+    active
+      ? "border-blue-600 bg-blue-50 shadow-lg shadow-blue-100"
+      : "border-slate-200 bg-white hover:border-blue-300 hover:shadow-md"
+  }`;
 }
 
 function scheduleKey(sectionId, slot) {
   return `${sectionId}__${slot.groupId}`;
 }
 
-function getScheduleOccupancy(registrations) {
-  const counts = {};
+function getPeopleCount(record) {
+  const companionsTotal =
+    record.hasCompanions && Array.isArray(record.companions)
+      ? record.companions.filter(
+          (c) =>
+            c?.firstName?.trim() &&
+            c?.floorNumber?.trim() &&
+            c?.seatNumber?.trim()
+        ).length
+      : 0;
 
-  scheduleSections.forEach((section) => {
-    section.slots.forEach((slot) => {
-      counts[scheduleKey(section.id, slot)] = 0;
-    });
-  });
-
-  registrations.forEach((record) => {
-    const seats =
-      1 +
-      (record.hasCompanions && Array.isArray(record.companions)
-        ? record.companions.filter((name) => name && name.trim().length > 0).length
-        : 0);
-
-    Object.entries(record.schedules || {}).forEach(([sectionId, selected]) => {
-      if (!selected?.groupId) return;
-      const key = `${sectionId}__${selected.groupId}`;
-      counts[key] = (counts[key] || 0) + seats;
-    });
-  });
-
-  return counts;
+  return 1 + companionsTotal;
 }
 
 function formatSelectedSchedule(selected) {
@@ -200,54 +185,67 @@ function formatSelectedSchedule(selected) {
 
 export default function RegisterPage() {
   const [step, setStep] = useState(0);
-  const [form, setForm] = useState(initialForm);
-  const [registrations, setRegistrations] = useState([]);
+  const [form, setForm] = useState(createInitialForm());
+  const [serverUsedCounts, setServerUsedCounts] = useState({});
+  const [isLoadingAvailability, setIsLoadingAvailability] = useState(true);
   const [submittedRecord, setSubmittedRecord] = useState(null);
-  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
+    const loadAvailability = async () => {
       try {
-        setRegistrations(JSON.parse(raw));
-      } catch {
-        setRegistrations([]);
+        const response = await fetch("/api/availability", {
+          cache: "no-store",
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          setServerUsedCounts(result.used || {});
+        }
+      } catch (error) {
+        console.error("Failed to load availability:", error);
+      } finally {
+        setIsLoadingAvailability(false);
       }
-    }
-    setIsLoaded(true);
+    };
+
+    loadAvailability();
+
+    const interval = setInterval(loadAvailability, 15000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  useEffect(() => {
-    if (isLoaded) {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(registrations));
-    }
-  }, [registrations, isLoaded]);
-
-  const occupancy = useMemo(
-    () => getScheduleOccupancy(registrations),
-    [registrations]
-  );
+  const occupancy = useMemo(() => {
+    return serverUsedCounts;
+  }, [serverUsedCounts]);
 
   const canContinueFromStep = useMemo(() => {
     switch (step) {
       case 0:
         return true;
       case 1:
-        return form.fullName.trim().length >= 3;
+        return (
+          form.firstName.trim().length >= 2 &&
+          form.floorNumber.trim().length > 0 &&
+          form.seatNumber.trim().length > 0
+        );
       case 2:
-        return form.phone.trim().length >= 8 && !!form.gender;
+        return !!form.specialNeeds;
       case 3:
         return !!form.hasCompanions;
       case 4:
         if (form.hasCompanions === "لا") return true;
         if (!form.companionsCount || form.companionsCount < 1) return false;
-        return form.companions.every((name) => name.trim().length >= 2);
-      case 5:
-        return (
-          !!form.specialNeeds &&
-          form.floorNumber.trim().length > 0 &&
-          form.seatNumber.trim().length > 0
+
+        return form.companions.every(
+          (c) =>
+            c.firstName.trim().length >= 2 &&
+            c.floorNumber.trim().length > 0 &&
+            c.seatNumber.trim().length > 0
         );
+      case 5:
+        return true;
       case 6:
         return !!form.schedules.mina_to_arafat?.groupId;
       case 7:
@@ -280,7 +278,7 @@ export default function RegisterPage() {
   };
 
   const resetForm = () => {
-    setForm(initialForm);
+    setForm(createInitialForm());
     setStep(0);
     setSubmittedRecord(null);
   };
@@ -298,28 +296,40 @@ export default function RegisterPage() {
     updateForm({
       hasCompanions: value,
       companionsCount: 1,
-      companions: [""],
+      companions: [{ firstName: "", floorNumber: "", seatNumber: "" }],
     });
   };
 
   const handleCompanionCountChange = (count) => {
     const safeCount = Math.max(1, Math.min(10, Number(count) || 1));
-    const next = Array.from(
-      { length: safeCount },
-      (_, i) => form.companions[i] || ""
-    );
+
+    const next = Array.from({ length: safeCount }, (_, i) => {
+      return (
+        form.companions[i] || {
+          firstName: "",
+          floorNumber: "",
+          seatNumber: "",
+        }
+      );
+    });
+
     updateForm({ companionsCount: safeCount, companions: next });
   };
 
-  const handleCompanionNameChange = (index, value) => {
+  const handleCompanionChange = (index, field, value) => {
     const next = [...form.companions];
-    next[index] = value;
+    next[index] = {
+      ...next[index],
+      [field]: value,
+    };
     updateForm({ companions: next });
   };
 
   const validateCapacityForAllSchedules = () => {
-    const seatsRequested =
-      1 + (form.hasCompanions === "نعم" ? Number(form.companionsCount) : 0);
+    const seatsRequested = getPeopleCount({
+      hasCompanions: form.hasCompanions === "نعم",
+      companions: form.hasCompanions === "نعم" ? form.companions : [],
+    });
 
     for (const section of scheduleSections) {
       const selected = form.schedules[section.id];
@@ -349,16 +359,14 @@ export default function RegisterPage() {
 
     const record = {
       id: `REG-${Date.now()}`,
-      fullName: form.fullName,
-      phone: form.phone,
-      gender: form.gender,
+      firstName: form.firstName,
+      floorNumber: form.floorNumber,
+      seatNumber: form.seatNumber,
       hasCompanions: form.hasCompanions === "نعم",
       companionsCount:
         form.hasCompanions === "نعم" ? Number(form.companionsCount) : 0,
       companions: form.hasCompanions === "نعم" ? form.companions : [],
       specialNeeds: form.specialNeeds,
-      floorNumber: form.floorNumber,
-      seatNumber: form.seatNumber,
       declarationAccepted: form.declarationAccepted,
       schedules: form.schedules,
       submittedAt: new Date().toLocaleTimeString("ar-SA", {
@@ -379,11 +387,25 @@ export default function RegisterPage() {
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        alert("حدث خطأ أثناء حفظ التسجيل في Google Sheets. يرجى المحاولة مرة أخرى.");
+        alert(result.error || "حدث خطأ أثناء حفظ التسجيل. يرجى المحاولة مرة أخرى.");
         return;
       }
 
-      setRegistrations((prev) => [record, ...prev]);
+      setServerUsedCounts((prev) => {
+        const peopleCount = getPeopleCount(record);
+        const next = { ...prev };
+
+        Object.entries(record.schedules || {}).forEach(
+          ([sectionId, selected]) => {
+            if (!selected?.groupId) return;
+            const key = `${sectionId}__${selected.groupId}`;
+            next[key] = (next[key] || 0) + peopleCount;
+          }
+        );
+
+        return next;
+      });
+
       setSubmittedRecord(record);
       setStep(13);
     } catch (error) {
@@ -416,8 +438,9 @@ export default function RegisterPage() {
             <div
               className="h-full rounded-full bg-blue-600 transition-all duration-500"
               style={{
-                width: `${step === 13 ? 100 : Math.max(8, (step / totalSteps) * 100)
-                  }%`,
+                width: `${
+                  step === 13 ? 100 : Math.max(8, (step / totalSteps) * 100)
+                }%`,
               }}
             />
           </div>
@@ -455,43 +478,59 @@ export default function RegisterPage() {
               {step === 1 && (
                 <StepShell
                   icon={<UserRound className="h-5 w-5" />}
-                  title="تسجيل الاسم"
-                  description="يرجى إدخال الاسم الكامل كما هو في المستندات الرسمية."
+                  title="بيانات الحاج"
+                  description="يرجى إدخال الاسم الأول ورقم الدور ورقم المقعد."
                 >
-                  <input
-                    value={form.fullName}
-                    onChange={(e) =>
-                      updateForm({ fullName: e.target.value })
-                    }
-                    placeholder="الاسم الكامل"
-                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base outline-none transition focus:border-blue-500"
-                  />
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <input
+                      value={form.firstName}
+                      onChange={(e) =>
+                        updateForm({ firstName: e.target.value })
+                      }
+                      placeholder="الاسم الأول"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 text-base outline-none transition focus:border-blue-500"
+                    />
+
+                    <input
+                      value={form.floorNumber}
+                      onChange={(e) =>
+                        updateForm({ floorNumber: e.target.value })
+                      }
+                      placeholder="رقم الدور"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 outline-none transition focus:border-blue-500"
+                    />
+
+                    <input
+                      value={form.seatNumber}
+                      onChange={(e) =>
+                        updateForm({ seatNumber: e.target.value })
+                      }
+                      placeholder="رقم المقعد"
+                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 outline-none transition focus:border-blue-500"
+                    />
+                  </div>
                 </StepShell>
               )}
 
               {step === 2 && (
                 <StepShell
-                  icon={<Phone className="h-5 w-5" />}
-                  title="بيانات التواصل"
-                  description="يرجى إدخال رقم الجوال والجنس لضمان وضوح بيانات التسجيل."
+                  icon={<Accessibility className="h-5 w-5" />}
+                  title="الاحتياجات الخاصة"
+                  description="تُستخدم هذه البيانات لدعم التخطيط التشغيلي وتحسين مستوى الخدمة."
                 >
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <input
-                      value={form.phone}
-                      onChange={(e) => updateForm({ phone: e.target.value })}
-                      placeholder="رقم الجوال للتواصل"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 outline-none transition focus:border-blue-500"
-                    />
-                    <select
-                      value={form.gender}
-                      onChange={(e) => updateForm({ gender: e.target.value })}
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 outline-none transition focus:border-blue-500"
-                    >
-                      <option value="">اختر الجنس</option>
-                      <option value="ذكر">ذكر</option>
-                      <option value="أنثى">أنثى</option>
-                    </select>
-                  </div>
+                  <select
+                    value={form.specialNeeds}
+                    onChange={(e) =>
+                      updateForm({ specialNeeds: e.target.value })
+                    }
+                    className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 outline-none transition focus:border-blue-500"
+                  >
+                    <option value="">
+                      هل يوجد أحد من المسجلين يحتاج إلى خدمات أو تسهيلات خاصة؟
+                    </option>
+                    <option value="نعم">نعم</option>
+                    <option value="لا">لا</option>
+                  </select>
                 </StepShell>
               )}
 
@@ -523,7 +562,7 @@ export default function RegisterPage() {
                   title="بيانات المرافقين"
                   description={
                     form.hasCompanions === "نعم"
-                      ? "الرجاء تحديد عدد المرافقين ثم إدخال أسمائهم كما هي في المستندات الرسمية."
+                      ? "يرجى إدخال الاسم الأول ورقم الدور ورقم المقعد لكل مرافق."
                       : "لا يوجد مرافقون ضمن هذا التسجيل."
                   }
                 >
@@ -545,17 +584,57 @@ export default function RegisterPage() {
                         />
                       </div>
 
-                      <div className="grid gap-3">
-                        {form.companions.map((name, index) => (
-                          <input
+                      <div className="grid gap-4">
+                        {form.companions.map((companion, index) => (
+                          <div
                             key={index}
-                            value={name}
-                            onChange={(e) =>
-                              handleCompanionNameChange(index, e.target.value)
-                            }
-                            placeholder={`اسم المرافق ${index + 1}`}
-                            className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 outline-none transition focus:border-blue-500"
-                          />
+                            className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                          >
+                            <p className="mb-3 font-semibold text-slate-900">
+                              المرافق {index + 1}
+                            </p>
+
+                            <div className="grid gap-3 md:grid-cols-3">
+                              <input
+                                value={companion.firstName}
+                                onChange={(e) =>
+                                  handleCompanionChange(
+                                    index,
+                                    "firstName",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="الاسم الأول"
+                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 outline-none transition focus:border-blue-500"
+                              />
+
+                              <input
+                                value={companion.floorNumber}
+                                onChange={(e) =>
+                                  handleCompanionChange(
+                                    index,
+                                    "floorNumber",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="رقم الدور"
+                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 outline-none transition focus:border-blue-500"
+                              />
+
+                              <input
+                                value={companion.seatNumber}
+                                onChange={(e) =>
+                                  handleCompanionChange(
+                                    index,
+                                    "seatNumber",
+                                    e.target.value
+                                  )
+                                }
+                                placeholder="رقم المقعد"
+                                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 outline-none transition focus:border-blue-500"
+                              />
+                            </div>
+                          </div>
                         ))}
                       </div>
                     </div>
@@ -569,42 +648,13 @@ export default function RegisterPage() {
 
               {step === 5 && (
                 <StepShell
-                  icon={<Accessibility className="h-5 w-5" />}
-                  title="معلومات إضافية"
-                  description="تُستخدم هذه البيانات لدعم التخطيط التشغيلي وتحسين مستوى الخدمة."
+                  icon={<CheckCircle2 className="h-5 w-5" />}
+                  title="الانتقال إلى اختيار المواعيد"
+                  description="تم استكمال البيانات الأساسية، يرجى المتابعة لاختيار الأفواج والمواعيد."
                 >
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <select
-                      value={form.specialNeeds}
-                      onChange={(e) =>
-                        updateForm({ specialNeeds: e.target.value })
-                      }
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 outline-none transition focus:border-blue-500"
-                    >
-                      <option value="">
-                        هل يوجد أحد من المسجلين يحتاج إلى خدمات أو تسهيلات خاصة؟
-                      </option>
-                      <option value="نعم">نعم</option>
-                      <option value="لا">لا</option>
-                    </select>
-
-                    <input
-                      value={form.floorNumber}
-                      onChange={(e) =>
-                        updateForm({ floorNumber: e.target.value })
-                      }
-                      placeholder="رقم الدور"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 outline-none transition focus:border-blue-500"
-                    />
-
-                    <input
-                      value={form.seatNumber}
-                      onChange={(e) =>
-                        updateForm({ seatNumber: e.target.value })
-                      }
-                      placeholder="رقم المقعد"
-                      className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-4 outline-none transition focus:border-blue-500"
-                    />
+                  <div className="rounded-2xl bg-blue-50 p-5 text-sm leading-7 text-blue-800">
+                    في الخطوات التالية سيتم اختيار الفوج والوقت لكل مسار من
+                    مسارات التفويج.
                   </div>
                 </StepShell>
               )}
@@ -617,6 +667,7 @@ export default function RegisterPage() {
                     updateSchedule(scheduleSections[step - 6].id, slot)
                   }
                   occupancy={occupancy}
+                  isLoadingAvailability={isLoadingAvailability}
                 />
               )}
 
@@ -627,9 +678,13 @@ export default function RegisterPage() {
                   description="يرجى مراجعة المعلومات التالية قبل تأكيد التسجيل."
                 >
                   <div className="grid gap-4 md:grid-cols-2">
-                    <ReviewItem label="الاسم الكامل" value={form.fullName} />
-                    <ReviewItem label="رقم الجوال" value={form.phone} />
-                    <ReviewItem label="الجنس" value={form.gender} />
+                    <ReviewItem label="الاسم الأول" value={form.firstName} />
+                    <ReviewItem label="رقم الدور" value={form.floorNumber} />
+                    <ReviewItem label="رقم المقعد" value={form.seatNumber} />
+                    <ReviewItem
+                      label="احتياجات خاصة"
+                      value={form.specialNeeds}
+                    />
                     <ReviewItem label="المرافقون" value={form.hasCompanions} />
                     <ReviewItem
                       label="عدد المرافقين"
@@ -640,25 +695,28 @@ export default function RegisterPage() {
                       }
                     />
                     <ReviewItem
-                      label="أسماء المرافقين"
+                      label="بيانات المرافقين"
                       value={
                         form.hasCompanions === "نعم"
-                          ? form.companions.join("، ")
+                          ? form.companions
+                              .map(
+                                (c, i) =>
+                                  `${i + 1}. ${c.firstName} - الدور ${
+                                    c.floorNumber
+                                  } - المقعد ${c.seatNumber}`
+                              )
+                              .join(" | ")
                           : "لا يوجد"
                       }
                     />
-                    <ReviewItem
-                      label="احتياجات خاصة"
-                      value={form.specialNeeds}
-                    />
-                    <ReviewItem label="رقم الدور" value={form.floorNumber} />
-                    <ReviewItem label="رقم المقعد" value={form.seatNumber} />
 
                     {scheduleSections.map((section) => (
                       <ReviewItem
                         key={section.id}
                         label={section.title}
-                        value={formatSelectedSchedule(form.schedules[section.id])}
+                        value={formatSelectedSchedule(
+                          form.schedules[section.id]
+                        )}
                       />
                     ))}
                   </div>
@@ -677,7 +735,8 @@ export default function RegisterPage() {
                       />
 
                       <span className="text-sm leading-7 text-slate-700">
-                        اقر بان التزم بالمواعيد المختارة وان الترم بمواعيد التفويج حسب ماتقرره وزارة الحج والعمرة في ذالك و اوافق على شروط و احكام الشركة في استخدام المعلومات التالية
+                        أقر بأنني ألتزم بالمواعيد المختارة وبمواعيد التفويج حسب
+                        ما تقرره وزارة الحج والعمرة.
                       </span>
                     </label>
                   </div>
@@ -698,9 +757,10 @@ export default function RegisterPage() {
                         </h3>
 
                         <p className="mt-2 leading-7 text-emerald-800">
-                          تم حفظ مواعيدكم المعتمدة بنجاح. نرجو الالتزام بالأوقات
-                          المحددة وفق الجداول الرسمية المعتمدة من وزارة الحج
-                          والعمرة، ونسأل الله لكم حجًا مبرورًا وسعيًا مشكورًا.
+                          تم حفظ مواعيدكم المعتمدة بنجاح. نرجو الالتزام
+                          بالأوقات المحددة وفق الجداول الرسمية المعتمدة من
+                          وزارة الحج والعمرة، ونسأل الله لكم حجًا مبرورًا
+                          وسعيًا مشكورًا.
                         </p>
 
                         <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -816,7 +876,13 @@ export default function RegisterPage() {
   );
 }
 
-function ScheduleStep({ section, selectedValue, onSelect, occupancy }) {
+function ScheduleStep({
+  section,
+  selectedValue,
+  onSelect,
+  occupancy,
+  isLoadingAvailability,
+}) {
   return (
     <StepShell
       icon={<Clock3 className="h-5 w-5" />}
@@ -826,6 +892,12 @@ function ScheduleStep({ section, selectedValue, onSelect, occupancy }) {
       <div className="mb-4 rounded-2xl bg-blue-50 p-4 text-sm text-blue-800">
         السعة القصوى لكل فوج: <span className="font-bold">{MAX_CAPACITY}</span>
       </div>
+
+      {isLoadingAvailability && (
+        <div className="mb-4 rounded-2xl bg-slate-50 p-4 text-sm text-slate-600">
+          جاري تحديث المقاعد المتبقية...
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2">
         {section.slots.map((slot) => {
@@ -856,10 +928,11 @@ function ScheduleStep({ section, selectedValue, onSelect, occupancy }) {
                 </div>
 
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-bold ${isFull
-                    ? "bg-red-100 text-red-700"
-                    : "bg-emerald-100 text-emerald-700"
-                    }`}
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${
+                    isFull
+                      ? "bg-red-100 text-red-700"
+                      : "bg-emerald-100 text-emerald-700"
+                  }`}
                 >
                   {isFull ? "مكتمل" : `${remaining} متبقٍ`}
                 </span>
