@@ -153,11 +153,10 @@ function createInitialForm() {
 }
 
 function cardClass(active = false) {
-  return `rounded-3xl border transition-all duration-200 ${
-    active
+  return `rounded-3xl border transition-all duration-200 ${active
       ? "border-blue-600 bg-blue-50 shadow-lg shadow-blue-100"
       : "border-slate-200 bg-white hover:border-blue-300 hover:shadow-md"
-  }`;
+    }`;
 }
 
 function scheduleKey(sectionId, slot) {
@@ -168,11 +167,11 @@ function getPeopleCount(record) {
   const companionsTotal =
     record.hasCompanions && Array.isArray(record.companions)
       ? record.companions.filter(
-          (c) =>
-            c?.firstName?.trim() &&
-            c?.floorNumber?.trim() &&
-            c?.seatNumber?.trim()
-        ).length
+        (c) =>
+          c?.firstName?.trim() &&
+          c?.floorNumber?.trim() &&
+          c?.seatNumber?.trim()
+      ).length
       : 0;
 
   return 1 + companionsTotal;
@@ -427,7 +426,7 @@ export default function RegisterPage() {
               className="mx-auto mb-4 h-20 w-auto"
             />
             <h1 className="text-2xl font-bold text-slate-900 md:text-3xl">
-              تسجيل الحجاج
+              تسجيل الحاج
             </h1>
             <p className="mt-2 text-sm leading-7 text-slate-500">
               يرجى استكمال الخطوات التالية لإتمام تسجيل مواعيدكم المعتمدة.
@@ -438,9 +437,8 @@ export default function RegisterPage() {
             <div
               className="h-full rounded-full bg-blue-600 transition-all duration-500"
               style={{
-                width: `${
-                  step === 13 ? 100 : Math.max(8, (step / totalSteps) * 100)
-                }%`,
+                width: `${step === 13 ? 100 : Math.max(8, (step / totalSteps) * 100)
+                  }%`,
               }}
             />
           </div>
@@ -463,7 +461,7 @@ export default function RegisterPage() {
                 <div className="space-y-6 text-center">
                   <div className="rounded-[1.75rem] border border-blue-100 bg-gradient-to-b from-white to-blue-50 p-6">
                     <h2 className="text-2xl font-bold text-slate-900">
-                      مرحبًا بكم في منصة تنظيم وقتكم إلى إدارة مناسك الحج
+                      مرحبًا بكم في منصة فوج
                     </h2>
                     <p className="mt-4 leading-8 text-slate-600">
                       نسعد بخدمتكم في رحلتكم الإيمانية، وقد خُصصت هذه المنصة
@@ -699,13 +697,12 @@ export default function RegisterPage() {
                       value={
                         form.hasCompanions === "نعم"
                           ? form.companions
-                              .map(
-                                (c, i) =>
-                                  `${i + 1}. ${c.firstName} - الدور ${
-                                    c.floorNumber
-                                  } - المقعد ${c.seatNumber}`
-                              )
-                              .join(" | ")
+                            .map(
+                              (c, i) =>
+                                `${i + 1}. ${c.firstName} - الدور ${c.floorNumber
+                                } - المقعد ${c.seatNumber}`
+                            )
+                            .join(" | ")
                           : "لا يوجد"
                       }
                     />
@@ -776,7 +773,39 @@ export default function RegisterPage() {
                       </div>
                     </div>
                   </div>
+                  <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
+                    <h4 className="mb-4 text-lg font-bold text-slate-900">
+                      ملخص المواعيد المختارة
+                    </h4>
 
+                    <p className="mb-5 text-sm leading-7 text-slate-600">
+                      يرجى الاحتفاظ بهذه المواعيد والالتزام بها حسب التفويج المعتمد.
+                    </p>
+
+                    <div className="grid gap-4 md:grid-cols-2">
+                      {scheduleSections.map((section) => {
+                        const selected = submittedRecord.schedules?.[section.id];
+
+                        return (
+                          <div
+                            key={section.id}
+                            className="rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                          >
+                            <p className="text-sm text-slate-500">
+                              {section.title}
+                            </p>
+
+                            <p className="mt-2 text-lg font-bold text-slate-900">
+                              {selected
+                                ? `${selected.groupLabel} - ${selected.time}`
+                                : "—"}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
                   <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm">
                     <h4 className="mb-4 text-lg font-bold text-slate-900">
                       مواقع مهمة خلال الرحلة
@@ -928,11 +957,10 @@ function ScheduleStep({
                 </div>
 
                 <span
-                  className={`rounded-full px-3 py-1 text-xs font-bold ${
-                    isFull
+                  className={`rounded-full px-3 py-1 text-xs font-bold ${isFull
                       ? "bg-red-100 text-red-700"
                       : "bg-emerald-100 text-emerald-700"
-                  }`}
+                    }`}
                 >
                   {isFull ? "مكتمل" : `${remaining} متبقٍ`}
                 </span>
